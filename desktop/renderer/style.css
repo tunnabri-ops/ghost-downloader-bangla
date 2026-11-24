@@ -1,0 +1,30 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, "Noto Sans Bengali", sans-serif; background: #0b1220; color: #e2e8f0; }
+header { padding: 18px 24px 0; }
+h1 { margin: 0; font-size: 26px; }
+h1 span { color: #38bdf8; }
+.sub { margin: 4px 0 0; color: #94a3b8; }
+main { max-width: 860px; margin: 0 auto; padding: 16px 24px; }
+.add-box { display: flex; gap: 8px; flex-wrap: wrap; }
+input[type="text"] { flex: 1; min-width: 240px; padding: 11px 12px; border-radius: 9px; border: 1px solid #334155; background: #0f172a; color: #fff; font-size: 15px; }
+select { padding: 11px; border-radius: 9px; border: 1px solid #334155; background: #0f172a; color: #fff; }
+button { padding: 11px 18px; border-radius: 9px; border: none; background: #0284c7; color: #fff; font-weight: 700; cursor: pointer; }
+button.ghost { background: #1e293b; }
+button:hover { opacity: 0.9; }
+.hint { color: #94a3b8; font-size: 13px; }
+.card { background: #111c33; border: 1px solid #1e293b; border-radius: 12px; padding: 12px 14px; margin: 10px 0; }
+.row { display: flex; justify-content: space-between; gap: 12px; }
+.badge { background: #0ea5e9; color: #fff; font-size: 12px; border-radius: 20px; padding: 2px 10px; }
+.muted { color: #94a3b8; }
+.small { font-size: 13px; margin-top: 4px; word-break: break-all; }
+.bar { height: 9px; background: #1e293b; border-radius: 6px; margin: 10px 0 6px; overflow: hidden; }
+.fill { height: 100%; background: #22c55e; }
+.actions { margin-top: 8px; display: flex; gap: 8px; }
+.actions button { padding: 7px 14px; font-size: 13px; background: #334155; }
+.error { color: #fca5a5; margin-top: 6px; font-size: 14px; }
+.empty { color: #94a3b8; text-align: center; padding: 18px 0; }
+h2 { font-size: 18px; margin-top: 24px; }
+#history { list-style: none; padding: 0; }
+#history li { background: #111c33; border: 1px solid #1e293b; border-radius: 8px; padding: 8px 12px; margin: 6px 0; font-size: 14px; }
+footer { max-width: 860px; margin: 0 auto; padding: 0 24px 24px; color: #94a3b8; font-size: 13px; }
+code { background: #1e293b; padding: 1px 6px; border-radius: 5px; }
