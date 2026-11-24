@@ -1,0 +1,351 @@
+"""Ghost Downloader Bangla — download engine (no GUI here).
+
+Features:
+- Single-file HTTP download with streaming + HTTP Range resume.
+- Multi-connection chunked download (4 parallel threads) when the server
+  supports Accept-Ranges, parts joined into the final file.
+- Pause = stop the worker thread; Resume = continue from downloaded bytes
+  (Range header, or per-part resume for chunked downloads).
+- M3U8: parse playlist, download .ts segments in order, concat into one file.
+- YouTube / video sites: delegated to yt-dlp via subprocess when installed.
+
+Only dependency: requests.
+"""
+import os
+import re
+import shutil
+import subprocess
+import threading
+import time
+from urllib.parse import urljoin
+
+import requests
+
+CHUNK_SIZE = 1024 * 256  # 256 KB per read
+DEFAULT_CONNECTIONS = 4
+MIN_CHUNKED_SIZE = 1024 * 1024  # only chunk files >= 1 MB
+USER_AGENT = "Ghost-Downloader-Bangla/1.0 (Python/requests)"
+
+
+def format_size(n):
+    """Bytes -> human readable string, e.g. 1536 -> '1.5 KB'."""
+    if n is None:
+        return "—"
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if n < 1024:
+            return f"{n:.1f} {unit}" if unit != "B" else f"{int(n)} B"
+        n /= 1024
+    return f"{n:.1f} PB"
+
+
+def format_speed(bps):
+    if bps is None or bps <= 0:
+        return "—"
+    return format_size(bps) + "/s"
+
+
+def format_eta(seconds):
+    if seconds is None:
+        return "—"
+    seconds = int(seconds)
+    if seconds < 60:
+        return f"{seconds}s"
+    m, s = divmod(seconds, 60)
+    if m < 60:
+        return f"{m}m {s}s"
+    h, m = divmod(m, 60)
+    return f"{h}h {m}m"
+
+
+def filename_from_url(url):
+    name = url.split("?")[0].rstrip("/").rsplit("/", 1)[-1]
+    name = re.sub(r"[^A-Za-z0-9._\- ]+", "_", name) or "download"
+    return name
+
+
+class DownloadError(Exception):
+    pass
+
+
+class Task:
+    """One download job. Progress is reported via on_progress callback."""
+
+    def __init__(self, url, dest, on_progress=None):
+        self.url = url
+        self.dest = dest
+        self.name = os.path.basename(dest) or filename_from_url(url)
+        self.total = None          # total bytes, None = unknown
+        self.downloaded = 0
+        self.status = "queued"     # queued/downloading/paused/done/error/cancelled
+        self.error = ""
+        self.speed = 0.0
+        self.eta = None
+        self.on_progress = on_progress
+        self.stop_event = threading.Event()
+        self._thread = None
+        self._last_report = 0.0
+        self._last_downloaded = 0
+        self._speed_time = None
+
+    # -- progress reporting -------------------------------------------------
+    def _report(self, force=False):
+        now = time.time()
+        if self._speed_time is None:
+            self._speed_time = now
+            self._last_downloaded = self.downloaded
+        dt = now - self._speed_time
+        if dt >= 0.5 or force:
+            if dt > 0:
+                self.speed = (self.downloaded - self._last_downloaded) / dt
+            if self.speed > 0 and self.total:
+                self.eta = (self.total - self.downloaded) / self.speed
+            self._speed_time = now
+            self._last_downloaded = self.downloaded
+        if self.on_progress and (force or now - self._last_report >= 0.2):
+            self._last_report = now
+            self.on_progress(self)
+
+    # -- lifecycle ----------------------------------------------------------
+    def start(self):
+        self.stop_event.clear()
+        self.status = "downloading"
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def pause(self):
+        if self.status == "downloading":
+            self.stop_event.set()
+            self.status = "paused"
+            self._report(force=True)
+
+    def cancel(self):
+        self.stop_event.set()
+        self.status = "cancelled"
+        self._report(force=True)
+
+    def is_alive(self):
+        return self._thread is not None and self._thread.is_alive()
+
+    # -- engine -------------------------------------------------------------
+    def _run(self):
+        try:
+            if is_m3u8_url(self.url):
+                self._run_m3u8()
+            else:
+                self._run_http()
+        except Exception as exc:  # noqa: BLE001 - surface any failure
+            if self.status != "cancelled":
+                self.status = "error"
+                self.error = str(exc)
+        finally:
+            self._report(force=True)
+
+    def _run_http(self):
+        session = requests.Session()
+        # Identity encoding: sizes must be exact bytes, no gzip decompression.
+        session.headers.update({"User-Agent": USER_AGENT, "Accept-Encoding": "identity"})
+        # Probe: size + range support.
+        total = None
+        accept_ranges = False
+        try:
+            head = session.head(self.url, allow_redirects=True, timeout=15)
+            head.raise_for_status()
+            if head.headers.get("Content-Length"):
+                total = int(head.headers["Content-Length"])
+            accept_ranges = "bytes" in head.headers.get("Accept-Ranges", "")
+        except requests.RequestException:
+            pass  # fall back to GET; size stays unknown
+        self.total = total
+
+        existing = os.path.getsize(self.dest) if os.path.exists(self.dest) else 0
+        if total and existing >= total:
+            self.downloaded = total
+            self.status = "done"
+            return
+
+        if accept_ranges and total and total >= MIN_CHUNKED_SIZE:
+            self._run_chunked(session, total)
+        else:
+            self._run_single(session, existing)
+        if self.status == "downloading":
+            self.status = "done"
+
+    def _run_single(self, session, existing):
+        """One connection, streaming, resume with Range if a partial file exists."""
+        headers = {}
+        mode = "wb"
+        self.downloaded = 0
+        if existing > 0:
+            headers["Range"] = f"bytes={existing}-"
+            mode = "ab"
+            self.downloaded = existing
+        resp = session.get(self.url, headers=headers, stream=True, timeout=30)
+        if existing > 0 and resp.status_code == 200:
+            # Server ignored Range — restart from scratch.
+            mode = "wb"
+            self.downloaded = 0
+        resp.raise_for_status()
+        if self.total is None and resp.headers.get("Content-Length"):
+            self.total = self.downloaded + int(resp.headers["Content-Length"])
+        with open(self.dest, mode) as f:
+            for chunk in resp.iter_content(chunk_size=CHUNK_SIZE):
+                if self.stop_event.is_set():
+                    return
+                if chunk:
+                    f.write(chunk)
+                    self.downloaded += len(chunk)
+                    self._report()
+
+    def _run_chunked(self, session, total):
+        """4 parallel connections, each downloading one byte range to a part file."""
+        parts = []
+        part_size = total // DEFAULT_CONNECTIONS
+        for i in range(DEFAULT_CONNECTIONS):
+            start = i * part_size
+            end = total - 1 if i == DEFAULT_CONNECTIONS - 1 else (i + 1) * part_size - 1
+            parts.append((i, start, end))
+        part_files = [f"{self.dest}.part{i}" for i in range(DEFAULT_CONNECTIONS)]
+        # Already-downloaded bytes from previous (paused) runs.
+        self.downloaded = sum(
+            os.path.getsize(p) for p in part_files if os.path.exists(p)
+        )
+        self._report(force=True)
+        errors = []
+        lock = threading.Lock()
+
+        def worker(i, start, end, part_file):
+            done = os.path.getsize(part_file) if os.path.exists(part_file) else 0
+            pos = start + done
+            if pos > end:
+                return
+            try:
+                resp = session.get(
+                    self.url,
+                    headers={"Range": f"bytes={pos}-{end}"},
+                    stream=True,
+                    timeout=30,
+                )
+                resp.raise_for_status()
+                with open(part_file, "ab") as f:
+                    for chunk in resp.iter_content(chunk_size=CHUNK_SIZE):
+                        if self.stop_event.is_set():
+                            return
+                        if chunk:
+                            f.write(chunk)
+                            with lock:
+                                self.downloaded += len(chunk)
+                            self._report()
+            except Exception as exc:  # noqa: BLE001 - collect, report later
+                errors.append(exc)
+
+        threads = [
+            threading.Thread(target=worker, args=(i, s, e, pf), daemon=True)
+            for (i, s, e), pf in zip(parts, part_files)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        if self.stop_event.is_set():
+            return
+        if errors:
+            raise DownloadError(str(errors[0]))
+        # Join parts into the final file.
+        with open(self.dest, "wb") as out:
+            for pf in part_files:
+                with open(pf, "rb") as f:
+                    shutil.copyfileobj(f, out, length=CHUNK_SIZE)
+                os.remove(pf)
+        self.downloaded = total
+
+    # -- M3U8 ---------------------------------------------------------------
+    def _run_m3u8(self):
+        session = requests.Session()
+        session.headers.update({"User-Agent": USER_AGENT, "Accept-Encoding": "identity"})
+        resp = session.get(self.url, timeout=30)
+        resp.raise_for_status()
+        text = resp.text
+        if "#EXT-X-KEY" in text:
+            raise DownloadError(
+                "Encrypted M3U8 (EXT-X-KEY) is not supported by this version."
+            )
+        segments = []
+        for line in text.splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                segments.append(urljoin(self.url, line))
+        if not segments:
+            raise DownloadError("No segments found in the M3U8 playlist.")
+        self.total = len(segments)
+        existing = 0
+        if os.path.exists(self.dest):
+            # Count already-downloaded segments by size marker file.
+            marker = self.dest + ".segments"
+            if os.path.exists(marker):
+                existing = int(open(marker, encoding="utf-8").read().strip() or 0)
+        self.downloaded = existing
+        mode = "ab" if existing else "wb"
+        with open(self.dest, mode) as out:
+            for idx, seg_url in enumerate(segments):
+                if self.stop_event.is_set():
+                    with open(self.dest + ".segments", "w", encoding="utf-8") as m:
+                        m.write(str(idx))
+                    return
+                if idx < existing:
+                    continue
+                r = session.get(seg_url, timeout=30)
+                r.raise_for_status()
+                out.write(r.content)
+                self.downloaded = idx + 1
+                self._report()
+        marker = self.dest + ".segments"
+        if os.path.exists(marker):
+            os.remove(marker)
+        if self.status == "downloading":
+            self.status = "done"
+
+
+def is_m3u8_url(url):
+    return ".m3u8" in url.split("?")[0].lower()
+
+
+def is_video_site_url(url):
+    """True when the URL is probably a video page (YouTube etc.) — needs yt-dlp."""
+    host = url.lower()
+    return any(
+        d in host
+        for d in (
+            "youtube.com", "youtu.be", "facebook.com", "fb.watch",
+            "tiktok.com", "instagram.com", "twitter.com", "x.com",
+            "vimeo.com", "dailymotion.com", "twitch.tv",
+        )
+    )
+
+
+def yt_dlp_available():
+    return shutil.which("yt-dlp") is not None
+
+
+def download_with_yt_dlp(url, out_dir, progress_cb=None):
+    """Download a video-page URL with yt-dlp (best mp4 up to 1080p).
+
+    Returns (returncode, output). Raises DownloadError when yt-dlp is missing.
+    """
+    if not yt_dlp_available():
+        raise DownloadError(
+            "yt-dlp ইনস্টল করা নেই। ইনস্টল করুন: pip install yt-dlp — তারপর আবার চেষ্টা করুন।"
+        )
+    os.makedirs(out_dir, exist_ok=True)
+    cmd = [
+        "yt-dlp",
+        "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+        "--merge-output-format", "mp4",
+        "-o", os.path.join(out_dir, "%(title)s.%(ext)s"),
+        url,
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+    if progress_cb:
+        progress_cb(proc.stdout + proc.stderr)
+    if proc.returncode != 0:
+        raise DownloadError(f"yt-dlp failed: {proc.stderr.strip()[-500:]}")
+    return proc.returncode, proc.stdout
