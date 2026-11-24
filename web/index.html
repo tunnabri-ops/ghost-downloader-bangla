@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<link rel="icon" href="data:," />
+<title>Ghost Downloader Bangla — বাংলা ডাউনলোড ম্যানেজার</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e13; --bg2:#0d1219; --surface:#121922; --surface2:#171f2b; --surface3:#1c2735;
+    --border:#223041; --border-soft:#1a2635;
+    --text:#eef4f1; --muted:#9db0a3; --faint:#6b7f74;
+    --accent:#2ee6a8; --accent-dim:#123c2e; --accent-ink:#06231a;
+    --amber:#fbbf24; --red:#fb7185; --red-dim:#3d1620;
+    --sky:#38bdf8; --sky-dim:#0f2c3d;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:"Hind Siliguri",system-ui,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .mono{font-family:"JetBrains Mono",monospace}
+  button,[role="button"],select,input,textarea{font-family:inherit}
+  button,select{ min-height:40px }
+  a{color:var(--accent)}
+  .wrap{max-width:980px;margin:0 auto;padding:20px 16px 56px}
+
+  /* ---------- header ---------- */
+  .top{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:18px}
+  .brand{display:flex;gap:14px;align-items:center;min-width:0}
+  .ghost{width:52px;height:52px;flex:0 0 52px;border-radius:14px;background:var(--accent-dim);border:1px solid #1d5c44;display:grid;place-items:center}
+  h1{font-size:clamp(24px,4.5vw,34px);line-height:1.15;margin:0;font-weight:700;letter-spacing:-.01em}
+  h1 .en{color:var(--accent)}
+  .tagline{margin:4px 0 0;color:var(--muted);font-size:15px;max-width:560px}
+  .live-stats{display:flex;gap:8px;flex-wrap:wrap}
+  .stat{background:var(--surface);border:1px solid var(--border-soft);border-radius:12px;padding:8px 14px;min-width:104px}
+  .stat b{display:block;font-size:17px;line-height:1.2}
+  .stat span{font-size:12.5px;color:var(--faint)}
+
+  /* ---------- add card ---------- */
+  .card{background:var(--surface);border:1px solid var(--border-soft);border-radius:var(--radius);padding:18px}
+  .add-card{background:linear-gradient(180deg,var(--surface2),var(--surface));border-color:var(--border)}
+  label.flabel{display:block;font-weight:600;font-size:15.5px;margin-bottom:8px}
+  label.flabel small{display:block;font-weight:400;color:var(--muted);font-size:13.5px;margin-top:2px}
+  textarea#urlInput{width:100%;min-height:64px;resize:vertical;background:var(--bg2);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:12px 14px;font-size:15px;line-height:1.5;outline:none}
+  textarea#urlInput:focus{border-color:var(--accent)}
+  textarea#urlInput::placeholder{color:var(--faint)}
+  .detect-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;min-height:28px}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:4px 11px;border-radius:999px;border:1px solid var(--border);background:var(--bg2);color:var(--muted)}
+  .badge.ok{color:var(--accent);border-color:#1d5c44;background:var(--accent-dim)}
+  .badge.warn{color:var(--amber);border-color:#57440e;background:#2b2107}
+  .badge.yt{color:#fda4af;border-color:#5c2430;background:#2b1219}
+  .badge.info{color:var(--sky);border-color:#1e4a63;background:var(--sky-dim)}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .btn{border:1px solid var(--border);background:var(--surface3);color:var(--text);border-radius:10px;padding:9px 18px;font-size:15px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px;justify-content:center}
+  .btn:hover{border-color:#33465e}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+  .btn.primary:hover{background:#4beebb}
+  .btn.ghostbtn{background:transparent}
+  .btn.small{min-height:36px;padding:5px 13px;font-size:13.5px;border-radius:8px}
+  .btn.danger{color:var(--red)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  .samples{margin-top:16px;border-top:1px dashed var(--border-soft);padding-top:14px}
+  .samples p{margin:0 0 8px;font-size:13.5px;color:var(--faint)}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{min-height:36px;border:1px dashed #2c4258;background:var(--bg2);color:var(--muted);border-radius:999px;padding:5px 13px;font-size:13.5px;cursor:pointer}
+  .chip:hover{color:var(--text);border-color:var(--accent)}
+  .err-msg{display:none;margin-top:12px;background:var(--red-dim);border:1px solid #5c2430;color:#fecdd3;border-radius:10px;padding:10px 14px;font-size:14px}
+  .err-msg.show{display:block}
+
+  /* ---------- queue ---------- */
+  .queue-head{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:26px 0 12px}
+  h2{font-size:20px;margin:0;font-weight:700}
+  h2 .count{color:var(--accent);font-size:15px}
+  .qtools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border-soft);border-radius:10px;padding:3px}
+  .tab{min-height:36px;border:0;background:transparent;color:var(--muted);padding:5px 13px;border-radius:7px;font-size:14px;font-weight:600;cursor:pointer}
+  .tab.active{background:var(--surface3);color:var(--text)}
+  select#concSel{background:var(--surface);color:var(--text);border:1px solid var(--border-soft);border-radius:10px;padding:6px 10px;font-size:14px;min-height:40px}
+  .empty{border:1.5px dashed var(--border);border-radius:var(--radius);padding:34px 18px;text-align:center;color:var(--muted)}
+  .empty .big{font-size:17px;color:var(--text);font-weight:600;margin:0 0 4px}
+  .empty p{margin:0;font-size:14px}
+
+  .task{background:var(--surface);border:1px solid var(--border-soft);border-radius:var(--radius);padding:15px 16px;margin-bottom:10px}
+  .task-top{display:flex;gap:12px;align-items:flex-start}
+  .fic{width:42px;height:42px;flex:0 0 42px;border-radius:10px;background:var(--bg2);border:1px solid var(--border-soft);display:grid;place-items:center;font-size:19px}
+  .tmain{flex:1;min-width:0}
+  .tname{font-weight:600;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .turl{font-size:12.5px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:ltr;text-align:left}
+  .tstatus{flex:0 0 auto}
+  .pill{font-size:12.5px;font-weight:700;padding:3px 10px;border-radius:999px}
+  .pill.dl{color:var(--accent);background:var(--accent-dim)}
+  .pill.wait{color:var(--muted);background:var(--bg2);border:1px solid var(--border-soft)}
+  .pill.pause{color:var(--amber);background:#2b2107}
+  .pill.done{color:var(--accent-ink);background:var(--accent)}
+  .pill.err{color:#fecdd3;background:var(--red-dim)}
+  .pill.cancel{color:var(--muted);background:var(--bg2)}
+  .bar{height:9px;background:var(--bg2);border-radius:99px;overflow:hidden;margin:12px 0 8px;border:1px solid var(--border-soft)}
+  .bar>i{display:block;height:100%;width:0%;background:var(--accent);border-radius:99px;transition:width .35s ease}
+  .bar.indet>i{width:35%!important;animation:slide 1.2s ease-in-out infinite alternate}
+  @keyframes slide{from{margin-left:0}to{margin-left:65%}}
+  @media (prefers-reduced-motion:reduce){.bar.indet>i{animation:none}.bar>i{transition:none}}
+  .tmeta{display:flex;gap:6px 16px;flex-wrap:wrap;font-size:13.5px;color:var(--muted)}
+  .tmeta b{color:var(--text);font-weight:600}
+  .tnote{font-size:13px;color:var(--amber);margin-top:6px;display:none}
+  .tnote.show{display:block}
+  .tnote.red{color:#fda4af}
+  .tbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .yt-frame{width:100%;aspect-ratio:16/9;border:0;border-radius:10px;margin-top:12px;background:#000;display:block}
+  .seg-note{font-size:13px;color:var(--sky)}
+
+  /* ---------- info grid ---------- */
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:26px}
+  @media (max-width:760px){.grid{grid-template-columns:1fr}.stat{min-width:calc(50% - 4px);flex:1}}
+  .info h3{margin:0 0 8px;font-size:16px}
+  .info ul{margin:0;padding-left:18px;color:var(--muted);font-size:14px}
+  .info li{margin-bottom:5px}
+  .info li b{color:var(--text)}
+  .foot{margin-top:26px;color:var(--faint);font-size:13.5px;text-align:center}
+  .foot a{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand">
+      <div class="ghost" aria-hidden="true">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M12 3a7 7 0 0 0-7 7v9l2.3-2.2L9.6 19l2.4-2.3L14.4 19l2.3-2.2L19 19v-9a7 7 0 0 0-7-7Z" fill="#2ee6a8"/><circle cx="9.2" cy="10.5" r="1.4" fill="#06231a"/><circle cx="14.8" cy="10.5" r="1.4" fill="#06231a"/><path d="M12 13.2v3M10.4 14.8 12 16.4l1.6-1.6" stroke="#06231a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div>
+        <h1>ঘোস্ট <span class="en">ডাউনলোডার</span></h1>
+        <p class="tagline">লিংক বসান, ডাউনলোড শুরু — লাইভ স্পিড, Pause/Resume আর কিউসহ পুরো বাংলা ডাউনলোড ম্যানেজার, সরাসরি ব্রাউজারেই।</p>
+      </div>
+    </div>
+    <div class="live-stats" aria-label="লাইভ পরিসংখ্যান">
+      <div class="stat"><b class="mono" id="statSpeed">0 B/s</b><span>মোট গতি</span></div>
+      <div class="stat"><b class="mono" id="statActive">০</b><span>চলমান</span></div>
+      <div class="stat"><b class="mono" id="statDone">০</b><span>সম্পন্ন</span></div>
+      <div class="stat"><b class="mono" id="statGot">0 B</b><span>মোট নামানো</span></div>
+    </div>
+  </div>
+
+  <!-- Add download -->
+  <section class="card add-card" aria-label="নতুন ডাউনলোড">
+    <label class="flabel" for="urlInput">ডাউনলোড লিংক বসান
+      <small>একসাথে অনেকগুলো লিংক দিতে চাইলে প্রতি লাইনে একটা করে দিন — ডাইরেক্ট ফাইল, M3U8 স্ট্রিম, YouTube সবই চলবে।</small>
+    </label>
+    <textarea id="urlInput" placeholder="https://example.com/video.mp4&#10;https://example.com/stream.m3u8&#10;https://www.youtube.com/watch?v=…" spellcheck="false"></textarea>
+    <div class="detect-row" id="detectRow"><span class="badge">লিংক দিলেই ধরন চিনে দেখাবে</span></div>
+    <div class="err-msg" id="addErr" role="alert"></div>
+    <div class="actions">
+      <button class="btn primary" id="addBtn" type="button">⬇ ডাউনলোড শুরু করুন</button>
+      <button class="btn" id="pasteBtn" type="button">📋 ক্লিপবোর্ড থেকে পেস্ট</button>
+      <button class="btn ghostbtn" id="clearInputBtn" type="button">মুছে ফেলুন</button>
+    </div>
+    <div class="samples">
+      <p>আগে টেস্ট করে দেখতে চান? এই লিংকগুলো ব্রাউজার থেকে সরাসরি ডাউনলোড হয়:</p>
+      <div class="chips">
+        <button class="chip" type="button" data-sample="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4">🎬 ছোট ভিডিও (~১৫ সেকেন্ড)</button>
+        <button class="chip" type="button" data-sample="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4">🐰 Big Buck Bunny (বড় ফাইল)</button>
+        <button class="chip" type="button" data-sample="https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8">📡 M3U8 লাইভ-স্ট্রিম টেস্ট</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Queue -->
+  <div class="queue-head">
+    <h2>ডাউনলোড কিউ <span class="count" id="qCount"></span></h2>
+    <div class="qtools">
+      <div class="tabs" role="tablist" aria-label="ফিল্টার">
+        <button class="tab active" type="button" data-filter="all">সব</button>
+        <button class="tab" type="button" data-filter="active">চলছে</button>
+        <button class="tab" type="button" data-filter="done">সম্পন্ন</button>
+        <button class="tab" type="button" data-filter="error">ব্যর্থ</button>
+      </div>
+      <label style="font-size:13.5px;color:var(--muted)">একসাথে
+        <select id="concSel" aria-label="একসাথে কয়টা ডাউনলোড চলবে">
+          <option value="1">১টা</option>
+          <option value="2">২টা</option>
+          <option value="3" selected>৩টা</option>
+          <option value="5">৫টা</option>
+        </select>
+      </label>
+      <button class="btn small" id="clearDoneBtn" type="button">সম্পন্নগুলো সরান</button>
+    </div>
+  </div>
+
+  <div id="taskList"></div>
+  <div class="empty" id="emptyState">
+    <p class="big">👻 এখনো কোনো ডাউনলোড নেই</p>
+    <p>উপরে একটা লিংক বসিয়ে “ডাউনলোড শুরু করুন” চাপুন — ফাইল এখানে কিউতে এসে নামতে শুরু করবে।</p>
+  </div>
+
+  <!-- Info -->
+  <div class="grid">
+    <section class="card info">
+      <h3>✅ যা যা পারবে</h3>
+      <ul>
+        <li><b>ডাইরেক্ট ফাইল</b> — MP4, MP3, ZIP, PDF, APK যেকোনো সরাসরি লিংক</li>
+        <li><b>রিয়েল প্রগ্রেস</b> — শতাংশ, লাইভ স্পিড (MB/s) আর বাকি সময় (ETA)</li>
+        <li><b>Pause / Resume</b> — সার্ভার Range সাপোর্ট করলে থামানো জায়গা থেকেই আবার শুরু</li>
+        <li><b>M3U8 স্ট্রিম</b> — প্লেলিস্টের সব সেগমেন্ট নামিয়ে একটা .ts ফাইলে জোড়া দেয়</li>
+        <li><b>কিউ</b> — অনেকগুলো ডাউনলোড একসাথে সাজিয়ে পরপর নামায়</li>
+      </ul>
+    </section>
+    <section class="card info">
+      <h3>⚠️ ব্রাউজারের সীমা (সত্যিটা)</h3>
+      <ul>
+        <li><b>YouTube</b> সরাসরি নামানো ব্রাউজারে হয় না — এখানে ভিডিওটা চালিয়ে দেখা যাবে, নামাতে চাইলে বাইরের ডাউনলোড লিংক দেওয়া আছে</li>
+        <li><b>Magnet / Torrent / FTP</b> ব্রাউজারে চলে না — এগুলোর জন্য ডেস্কটপ সংস্করণ লাগবে</li>
+        <li>কোনো সাইট <b>CORS ব্লক</b> করলে ফাইল নামবে না — সেক্ষেত্রে এরর মেসেজে কারণ দেখাবে</li>
+        <li>ফাইল আগে ব্রাউজারের মেমরিতে জমে, তারপর সেভ হয় — খুব বড় ফাইলে (২GB+) সমস্যা হতে পারে</li>
+      </ul>
+    </section>
+    <section class="card info">
+      <h3>🖥️ আসল Ghost Downloader</h3>
+      <ul>
+        <li>এটা অনুপ্রাণিত <b>Ghost Downloader 3</b> থেকে — Python/PySide6 ডেস্কটপ অ্যাপ, ১৬ হাজারের বেশি GitHub স্টার</li>
+        <li>ডেস্কটপে পাবেন: মাল্টি-চাঙ্ক ফাস্ট ডাউনলোড, Magnet/BT, FTP, DASH, YouTube, Bilibili, ব্রাউজার এক্সটেনশন</li>
+        <li><a href="https://github.com/XiaoYouChR/Ghost-Downloader-3" target="_blank" rel="noopener">GitHub-এ আসল প্রজেক্ট দেখুন ↗</a></li>
+      </ul>
+    </section>
+  </div>
+
+  <p class="foot">ডাউনলোড হয় আপনার নিজের ব্রাউজার থেকেই — কোনো সার্ভারে ফাইল ওঠে না। কপিরাইটযুক্ত কনটেন্ট নামানোর দায় নিজের।</p>
+</div>
+
+<script>
+(function(){
+"use strict";
+var BN = ["০","১","২","৩","৪","৫","৬","৭","৮","৯"];
+function bnNum(n){ return String(n).replace(/[0-9]/g, function(d){ return BN[+d]; }); }
+function fmtBytes(b){
+  if(b==null || isNaN(b)) return "—";
+  if(b===0) return "0 B";
+  var u=["B","KB","MB","GB","TB"], i=Math.floor(Math.log(b)/Math.log(1024));
+  i=Math.min(i,u.length-1);
+  var v=b/Math.pow(1024,i);
+  return (v>=100?Math.round(v):v.toFixed(v>=10?1:2))+" "+u[i];
+}
+function fmtSpeed(bps){ return fmtBytes(bps)+"/s"; }
+function fmtETA(sec){
+  if(!isFinite(sec)||sec==null) return "—";
+  sec=Math.max(0,Math.round(sec));
+  if(sec<60) return bnNum(sec)+" সে.";
+  if(sec<3600) return bnNum(Math.floor(sec/60))+" মি. "+bnNum(sec%60)+" সে.";
+  return bnNum(Math.floor(sec/3600))+" ঘণ্টা "+bnNum(Math.floor(sec%3600/60))+" মি.";
+}
+function hostOf(u){ try{ return new URL(u).hostname; }catch(e){ return ""; } }
+function nameFromUrl(u){
+  try{
+    var p=new URL(u).pathname.split("/").filter(Boolean);
+    var last=p.length?decodeURIComponent(p[p.length-1]):"download";
+    return last || "download";
+  }catch(e){ return "download"; }
+}
+function ytId(u){
+  var m = u.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{6,})/);
+  return m?m[1]:null;
+}
+function detectType(u){
+  u=(u||"").trim();
+  if(!u) return null;
+  if(/^magnet:/i.test(u)) return {kind:"magnet", label:"🧲 Magnet লিংক — ব্রাউজারে চলবে না", cls:"warn"};
+  if(/^ftp:/i.test(u)) return {kind:"ftp", label:"📁 FTP লিংক — ব্রাউজারে চলবে না", cls:"warn"};
+  if(ytId(u)) return {kind:"youtube", label:"▶️ YouTube ভিডিও — প্লেয়ার + ডাউনলোড লিংক", cls:"yt"};
+  if(/\.m3u8($|\?)/i.test(u)) return {kind:"m3u8", label:"📡 M3U8 স্ট্রিম — সেগমেন্ট জোড়া দিয়ে নামবে", cls:"info"};
+  if(/\.mpd($|\?)/i.test(u)) return {kind:"dash", label:"🎞️ MPEG-DASH — ব্রাউজার সংস্করণে হয় না", cls:"warn"};
+  if(/^https?:\/\//i.test(u)) return {kind:"file", label:"📄 ডাইরেক্ট ফাইল — সরাসরি নামবে", cls:"ok"};
+  return {kind:"bad", label:"❌ সঠিক http(s) লিংক মনে হচ্ছে না", cls:"warn"};
+}
+function iconFor(name, kind){
+  if(kind==="m3u8") return "📡";
+  if(kind==="youtube") return "▶️";
+  var ext=(name.split(".").pop()||"").toLowerCase();
+  if(["mp4","mkv","webm","avi","mov"].indexOf(ext)>=0) return "🎬";
+  if(["mp3","wav","flac","ogg","m4a"].indexOf(ext)>=0) return "🎵";
+  if(["zip","rar","7z","tar","gz"].indexOf(ext)>=0) return "🗜️";
+  if(["jpg","jpeg","png","gif","webp","svg"].indexOf(ext)>=0) return "🖼️";
+  if(ext==="pdf") return "📕";
+  if(ext==="apk") return "🤖";
+  if(["exe","msi","dmg"].indexOf(ext)>=0) return "💿";
+  return "📄";
+}
+
+/* ---------------- state ---------------- */
+var tasks=[], seq=0, filter="all";
+var $=function(id){ return document.getElementById(id); };
+var listEl=$("taskList"), emptyEl=$("emptyState");
+
+function activeCount(){ return tasks.filter(function(t){return t.status==="downloading";}).length; }
+
+function pump(){
+  var max=parseInt($("concSel").value,10)||3;
+  for(var i=0;i<tasks.length;i++){
+    if(activeCount()>=max) break;
+    var t=tasks[i];
+    if(t.status==="queued"){ startTask(t); }
+  }
+  refreshStats();
+}
+
+function createTask(url){
+  var d=detectType(url);
+  var t={
+    id:++seq, url:url, kind:d?d.kind:"file",
+    name: nameFromUrl(url), status:"queued",
+    loaded:0, total:null, chunks:[], supportsRange:false, mime:"",
+    controller:null, samples:[], speed:0, error:"", note:"",
+    blobUrl:null, segUrls:null, segIndex:0, segTotal:0, pauseReq:false,
+    el:{}
+  };
+  if(t.kind==="m3u8" && !/\.ts($|\?)/i.test(t.name)) t.name = t.name.replace(/\.m3u8$/i,"") + ".ts";
+  if(t.kind==="youtube"){ t.name="YouTube ভিডিও — "+(ytId(url)||""); t.status="youtube"; }
+  if(t.kind==="magnet"||t.kind==="ftp"||t.kind==="dash"||t.kind==="bad"){
+    t.status="error";
+    t.error = t.kind==="magnet" ? "Magnet/Torrent ব্রাউজারে ডাউনলোড হয় না। ডেস্কটপ Ghost Downloader বা qBittorrent ব্যবহার করুন।"
+      : t.kind==="ftp" ? "FTP ডাউনলোড ব্রাউজারে সাপোর্ট করে না। ডেস্কটপ সংস্করণ ব্যবহার করুন।"
+      : t.kind==="dash" ? "MPEG-DASH স্ট্রিম এই ব্রাউজার সংস্করণে জোড়া দেওয়া যায় না। ডেস্কটপ সংস্করণে হয়।"
+      : "লিংকটা সঠিক নয় — http:// বা https:// দিয়ে শুরু হওয়া পুরো লিংক দিন।";
+  }
+  tasks.unshift(t);
+  buildTaskEl(t);
+  applyFilter();
+  return t;
+}
+
+function buildTaskEl(t){
+  var div=document.createElement("div");
+  div.className="task"; div.id="task-"+t.id;
+  var isYt = t.kind==="youtube";
+  div.innerHTML =
+    '<div class="task-top">'+
+      '<div class="fic" aria-hidden="true">'+iconFor(t.name,t.kind)+'</div>'+
+      '<div class="tmain"><div class="tname"></div><div class="turl mono"></div></div>'+
+      '<div class="tstatus"><span class="pill wait"></span></div>'+
+    '</div>'+
+    (isYt ? "" :
+    '<div class="bar"><i></i></div>'+
+    '<div class="tmeta"></div>')+
+    '<div class="tnote"></div>'+
+    '<div class="textra"></div>'+
+    '<div class="tbtns"></div>';
+  div.querySelector(".tname").textContent=t.name;
+  div.querySelector(".tname").title=t.name;
+  div.querySelector(".turl").textContent=t.url;
+  div.querySelector(".turl").title=t.url;
+  listEl.appendChild(div);
+  t.el.root=div;
+  t.el.pill=div.querySelector(".pill");
+  t.el.bar=div.querySelector(".bar");
+  t.el.fill=div.querySelector(".bar>i");
+  t.el.meta=div.querySelector(".tmeta");
+  t.el.note=div.querySelector(".tnote");
+  t.el.btns=div.querySelector(".tbtns");
+  t.el.extra=div.querySelector(".textra");
+  if(isYt) buildYtExtra(t);
+  renderBtns(t); updateUI(t);
+}
+
+function buildYtExtra(t){
+  var id=ytId(t.url);
+  var wrap=document.createElement("div");
+  wrap.innerHTML =
+    '<iframe class="yt-frame" src="https://www.youtube.com/embed/'+id+'" title="YouTube ভিডিও প্লেয়ার" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" allowfullscreen loading="lazy"></iframe>'+
+    '<p style="font-size:13.5px;color:var(--muted);margin:10px 0 0">YouTube সরাসরি ব্রাউজারে ডাউনলোড করতে দেয় না। ভিডিওটা এখানে দেখুন, অথবা নিচের বাইরের সার্ভিসে লিংকটা বসিয়ে নামান — সেখানে গুণমান বেছে নেওয়া যাবে।</p>';
+  t.el.extra.appendChild(wrap);
+  setPill(t,"▶️ YouTube","err");
+}
+
+function setPill(t,txt,cls){ t.el.pill.textContent=txt; t.el.pill.className="pill "+cls; }
+
+function renderBtns(t){
+  var b=t.el.btns; b.innerHTML="";
+  function mk(label, cls, fn, disabled){
+    var btn=document.createElement("button");
+    btn.type="button"; btn.className="btn small "+(cls||""); btn.textContent=label;
+    if(disabled) btn.disabled=true;
+    btn.addEventListener("click", function(){ fn(); });
+    b.appendChild(btn); return btn;
+  }
+  if(t.kind==="youtube"){
+    mk("▶ YouTube-এ খুলুন","",function(){ window.open(t.url,"_blank","noopener"); });
+    mk("⬇ Cobalt দিয়ে ডাউনলোড","primary",function(){ window.open("https://cobalt.tools/","_blank","noopener"); });
+    mk("সরান","danger",function(){ removeTask(t); });
+    return;
+  }
+  if(t.status==="downloading") mk("⏸ Pause","",function(){ pauseTask(t); });
+  if(t.status==="paused") mk("▶ Resume","primary",function(){ resumeTask(t); });
+  if(t.status==="queued") mk("▶ এখনই শুরু","primary",function(){ startTask(t); });
+  if(t.status==="downloading"||t.status==="paused"||t.status==="queued")
+    mk("✕ বাতিল","danger",function(){ cancelTask(t); });
+  if(t.status==="done" && t.blobUrl)
+    mk("💾 আবার সেভ করুন","primary",function(){ saveBlob(t); });
+  if(t.status==="error"||t.status==="cancelled")
+    mk("↻ আবার চেষ্টা","primary",function(){ retryTask(t); });
+  if(t.status==="done"||t.status==="error"||t.status==="cancelled")
+    mk("সরান","danger",function(){ removeTask(t); });
+}
+
+function updateUI(t){
+  if(t.kind==="youtube"){ return; }
+  var pct = (t.total && t.total>0) ? Math.min(100, t.loaded/t.total*100) : null;
+  if(t.el.fill) t.el.fill.style.width = pct==null ? "0%" : pct.toFixed(1)+"%";
+  if(t.el.bar) t.el.bar.classList.toggle("indet", t.status==="downloading" && pct==null);
+  var pillMap={
+    queued:["⏳ অপেক্ষায়","wait"], downloading:["⬇ নামছে","dl"], paused:["⏸ থামানো","pause"],
+    done:["✅ সম্পন্ন","done"], error:["❌ ব্যর্থ","err"], cancelled:["বাতিল","cancel"]
+  };
+  var pm=pillMap[t.status]; if(pm) setPill(t,pm[0],pm[1]);
+  var parts=[];
+  if(t.kind==="m3u8" && t.segTotal) parts.push("<span>সেগমেন্ট <b>"+bnNum(t.segIndex)+" / "+bnNum(t.segTotal)+"</b></span>");
+  parts.push("<span>নেমেছে <b>"+fmtBytes(t.loaded)+"</b>"+(t.total? " / "+fmtBytes(t.total):"")+"</span>");
+  if(pct!=null) parts.push("<span><b>"+bnNum(pct.toFixed(1))+"%</b></span>");
+  if(t.status==="downloading"){
+    parts.push("<span>স্পিড <b class='mono'>"+fmtSpeed(t.speed)+"</b></span>");
+    if(pct!=null && t.speed>0) parts.push("<span>বাকি <b>"+fmtETA((t.total-t.loaded)/t.speed)+"</b></span>");
+    if(t.kind==="file") parts.push("<span>"+(t.supportsRange?"Range সাপোর্ট আছে ✓":"Range নেই — Resume হলে গোড়া থেকে")+"</span>");
+  }
+  if(t.el.meta) t.el.meta.innerHTML=parts.join("");
+  var noteTxt = t.status==="error" ? t.error : t.note;
+  if(t.el.note){
+    t.el.note.textContent = noteTxt||"";
+    t.el.note.className = "tnote"+(noteTxt?" show":"")+(t.status==="error"?" red":"");
+  }
+}
+
+function refreshStats(){
+  var totalSpeed=0, done=0, got=0;
+  tasks.forEach(function(t){
+    if(t.status==="downloading") totalSpeed+=t.speed||0;
+    if(t.status==="done") done++;
+    got += t.loaded||0;
+  });
+  $("statSpeed").textContent=fmtSpeed(totalSpeed);
+  $("statActive").textContent=bnNum(activeCount());
+  $("statDone").textContent=bnNum(done);
+  $("statGot").textContent=fmtBytes(got);
+  var vis=tasks.length;
+  $("qCount").textContent = vis? "— মোট "+bnNum(vis)+"টা" : "";
+  emptyEl.style.display = vis? "none":"block";
+}
+
+function applyFilter(){
+  tasks.forEach(function(t){
+    var show = filter==="all" ? true
+      : filter==="active" ? (t.status==="downloading"||t.status==="queued"||t.status==="paused")
+      : filter==="done" ? t.status==="done"
+      : (t.status==="error"||t.status==="cancelled");
+    if(t.kind==="youtube" && filter!=="all") show = filter==="active";
+    t.el.root.style.display = show? "block":"none";
+  });
+  refreshStats();
+}
+
+/* ---------------- download engine ---------------- */
+function startTask(t){
+  if(t.status==="downloading"||t.kind==="youtube") return;
+  t.status="downloading"; t.error=""; t.note=""; t.pauseReq=false;
+  renderBtns(t); updateUI(t); refreshStats();
+  if(t.kind==="m3u8") runM3U8(t); else runFile(t);
+}
+function pauseTask(t){
+  t.pauseReq=true;
+  if(t.controller) t.controller.abort();
+  if(t.kind==="m3u8"){ t.status="paused"; renderBtns(t); updateUI(t); pump(); }
+}
+function resumeTask(t){
+  if(t.status!=="paused") return;
+  t.status="queued"; renderBtns(t); updateUI(t); pump();
+  /* pump() slot খালি থাকলে নিজেই শুরু করবে; ভর্তি থাকলে কিউতে থাকবে — সরাসরি startTask ডাকলে একসাথে-সীমা ভেঙে যেত। */
+}
+function cancelTask(t){
+  t.pauseReq=false;
+  if(t.controller) t.controller.abort();
+  t.status="cancelled"; t.chunks=[]; t.loaded=0; t.segIndex=0;
+  if(t.kind!=="m3u8"){ renderBtns(t); updateUI(t); }
+  pump();
+}
+function retryTask(t){
+  t.chunks=[]; t.loaded=0; t.total=null; t.segIndex=0; t.segUrls=null; t.error=""; t.note="";
+  if(t.blobUrl){ URL.revokeObjectURL(t.blobUrl); t.blobUrl=null; }
+  t.status="queued"; renderBtns(t); updateUI(t); pump();
+}
+function removeTask(t){
+  if(t.controller) t.controller.abort();
+  if(t.blobUrl) URL.revokeObjectURL(t.blobUrl);
+  tasks=tasks.filter(function(x){return x!==t;});
+  t.el.root.remove(); applyFilter(); pump();
+}
+function finishOk(t){
+  t.status="done"; t.speed=0;
+  var blob=new Blob(t.chunks,{type:t.mime||"application/octet-stream"});
+  t.blobUrl=URL.createObjectURL(blob);
+  t.total=blob.size; t.loaded=blob.size;
+  renderBtns(t); updateUI(t); saveBlob(t); pump();
+}
+function finishErr(t,msg){
+  t.status="error"; t.error=msg; t.speed=0;
+  renderBtns(t); updateUI(t); pump();
+}
+function saveBlob(t){
+  var a=document.createElement("a");
+  a.href=t.blobUrl; a.download=t.name||"download";
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function pushSample(t, loaded){
+  var now=Date.now();
+  t.samples.push({t:now, b:loaded});
+  while(t.samples.length>2 && now-t.samples[0].t>4000) t.samples.shift();
+  if(t.samples.length>1){
+    var first=t.samples[0], dt=(now-first.t)/1000;
+    if(dt>0.3) t.speed=(loaded-first.b)/dt;
+  }
+}
+
+function runFile(t){
+  var resumeFrom = (t.loaded>0 && t.supportsRange) ? t.loaded : 0;
+  if(t.loaded>0 && !t.supportsRange){ t.chunks=[]; t.loaded=0; resumeFrom=0; t.note="সার্ভার Resume সাপোর্ট করে না — গোড়া থেকে আবার নামছে।"; }
+  var ctrl=new AbortController(); t.controller=ctrl;
+  var headers={};
+  if(resumeFrom>0) headers["Range"]="bytes="+resumeFrom+"-";
+  fetch(t.url,{headers:headers, signal:ctrl.signal, credentials:"omit"}).then(function(res){
+    if(resumeFrom>0 && res.status===200){ t.chunks=[]; t.loaded=0; resumeFrom=0; }
+    if(!res.ok && res.status!==206) throw new Error("সার্ভার উত্তর দিয়েছে: HTTP "+res.status);
+    var cd=res.headers.get("content-disposition");
+    if(cd){ var m=cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i); if(m){ try{ t.name=decodeURIComponent(m[1]); t.el.root.querySelector(".tname").textContent=t.name; }catch(e){} } }
+    t.mime=res.headers.get("content-type")||t.mime||"";
+    var ar=res.headers.get("accept-ranges");
+    if(ar && ar!=="none") t.supportsRange=true;
+    var cr=res.headers.get("content-range");
+    if(cr){ var tm=cr.match(/\/(\d+)\s*$/); if(tm) t.total=parseInt(tm[1],10); }
+    else { var cl=res.headers.get("content-length"); if(cl) t.total=(resumeFrom||0)+parseInt(cl,10); }
+    if(!res.body) throw new Error("এই ব্রাউজারে স্ট্রিম পড়া যাচ্ছে না।");
+    var reader=res.body.getReader();
+    function step(){
+      reader.read().then(function(r){
+        if(r.done){ finishOk(t); return; }
+        t.chunks.push(r.value); t.loaded+=r.value.byteLength;
+        pushSample(t,t.loaded); updateUI(t);
+        step();
+      }).catch(function(err){
+        if(t.pauseReq){ t.status="paused"; t.speed=0; renderBtns(t); updateUI(t); pump(); return; }
+        if(t.status==="cancelled"){ renderBtns(t); updateUI(t); return; }
+        finishErr(t,"ডাউনলোড মাঝপথে ছিন্ন হয়েছে: "+err.message);
+      });
+    }
+    step();
+  }).catch(function(err){
+    if(t.pauseReq){ t.status="paused"; t.speed=0; renderBtns(t); updateUI(t); pump(); return; }
+    if(t.status==="cancelled"){ renderBtns(t); updateUI(t); return; }
+    if(err.name==="AbortError"){ return; }
+    var msg = (err instanceof TypeError)
+      ? "সাইটটা ব্রাউজার থেকে সরাসরি ফাইল নিতে দিচ্ছে না (CORS ব্লক বা নেটওয়ার্ক সমস্যা)। লিংকটা ব্রাউজারে খুলে দেখুন ফাইলটা আসে কিনা — এলে ডেস্কটপ সংস্করণ দিয়ে নামান।"
+      : err.message;
+    finishErr(t,msg);
+  });
+}
+
+/* ---- M3U8 ---- */
+function resolveUrl(base, rel){
+  try{ return new URL(rel, base).href; }catch(e){ return rel; }
+}
+function parsePlaylist(text, base){
+  var lines=text.split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean);
+  var isMaster = lines.some(function(l){return l.indexOf("#EXT-X-STREAM-INF")===0;});
+  var encrypted = lines.some(function(l){return l.indexOf("#EXT-X-KEY")===0 && l.indexOf("METHOD=NONE")<0;});
+  return {lines:lines, isMaster:isMaster, encrypted:encrypted, base:base};
+}
+function pickVariant(p){
+  var best=null, bestBw=-1, pendingBw=0;
+  for(var i=0;i<p.lines.length;i++){
+    var l=p.lines[i];
+    if(l.indexOf("#EXT-X-STREAM-INF")===0){
+      var m=l.match(/BANDWIDTH=(\d+)/); pendingBw=m?parseInt(m[1],10):0;
+    } else if(l.charAt(0)!=="#"){
+      if(pendingBw>=bestBw){ bestBw=pendingBw; best=l; }
+      pendingBw=0;
+    }
+  }
+  return best? resolveUrl(p.base,best):null;
+}
+function segmentUrls(p){
+  var out=[];
+  for(var i=0;i<p.lines.length;i++){ if(p.lines[i].charAt(0)!=="#") out.push(resolveUrl(p.base,p.lines[i])); }
+  return out;
+}
+function runM3U8(t){
+  var ctrl=new AbortController(); t.controller=ctrl;
+  function fail(err){
+    if(t.pauseReq){ t.status="paused"; t.speed=0; renderBtns(t); updateUI(t); pump(); return; }
+    if(t.status==="cancelled"){ renderBtns(t); updateUI(t); return; }
+    if(err && err.name==="AbortError") return;
+    var msg=(err instanceof TypeError) ? "স্ট্রিম সার্ভার ব্রাউজার থেকে অ্যাক্সেস দিচ্ছে না (CORS ব্লক)।" : (err&&err.message)||"অজানা সমস্যা";
+    finishErr(t,msg);
+  }
+  function loadSegments(){
+    var idx=t.segIndex;
+    if(idx>=t.segUrls.length){ t.mime="video/mp2t"; finishOk(t); return; }
+    if(t.pauseReq || t.status==="cancelled"){ t.status = t.pauseReq? "paused":t.status; renderBtns(t); updateUI(t); pump(); return; }
+    fetch(t.segUrls[idx],{signal:ctrl.signal, credentials:"omit"}).then(function(res){
+      if(!res.ok) throw new Error("সেগমেন্ট "+(idx+1)+" নামেনি: HTTP "+res.status);
+      return res.arrayBuffer();
+    }).then(function(buf){
+      t.chunks.push(new Uint8Array(buf)); t.loaded+=buf.byteLength; t.segIndex++;
+      pushSample(t,t.loaded);
+      t.total = t.segTotal? Math.round(t.loaded/Math.max(1,t.segIndex)*t.segTotal) : null;
+      updateUI(t); loadSegments();
+    }).catch(fail);
+  }
+  if(t.segUrls){ loadSegments(); return; }
+  fetch(t.url,{signal:ctrl.signal, credentials:"omit"}).then(function(res){
+    if(!res.ok) throw new Error("প্লেলিস্ট পাওয়া যায়নি: HTTP "+res.status);
+    return res.text();
+  }).then(function(text){
+    var p=parsePlaylist(text,t.url);
+    if(p.encrypted) throw new Error("এই স্ট্রিম এনক্রিপ্টেড (AES) — ব্রাউজারে জোড়া দেওয়া যাবে না। ডেস্কটপ সংস্করণ ব্যবহার করুন।");
+    if(p.isMaster){
+      var v=pickVariant(p);
+      if(!v) throw new Error("মাস্টার প্লেলিস্টে কোনো ভ্যারিয়েন্ট পাওয়া যায়নি।");
+      t.note="সবচেয়ে ভালো কোয়ালিটির স্ট্রিম বেছে নেওয়া হয়েছে।";
+      return fetch(v,{signal:ctrl.signal, credentials:"omit"}).then(function(r){
+        if(!r.ok) throw new Error("ভ্যারিয়েন্ট প্লেলিস্ট পাওয়া যায়নি: HTTP "+r.status);
+        return r.text().then(function(tx){ return {tx:tx, base:v}; });
+      });
+    }
+    return {tx:text, base:t.url};
+  }).then(function(obj){
+    if(t.status==="cancelled") return;
+    var p2=parsePlaylist(obj.tx, obj.base);
+    if(p2.encrypted) throw new Error("এই স্ট্রিম এনক্রিপ্টেড (AES) — ব্রাউজারে জোড়া দেওয়া যাবে না।");
+    t.segUrls=segmentUrls(p2); t.segTotal=t.segUrls.length;
+    if(!t.segUrls.length) throw new Error("প্লেলিস্টে কোনো সেগমেন্ট পাওয়া যায়নি।");
+    updateUI(t); loadSegments();
+  }).catch(fail);
+}
+
+/* ---------------- input handling ---------------- */
+var urlInput=$("urlInput"), detectRow=$("detectRow"), addErr=$("addErr");
+function showDetect(){
+  var lines=urlInput.value.split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean);
+  detectRow.innerHTML="";
+  if(!lines.length){ detectRow.innerHTML='<span class="badge">লিংক দিলেই ধরন চিনে দেখাবে</span>'; return; }
+  var seen={};
+  lines.forEach(function(u){
+    var d=detectType(u); if(!d) return;
+    var key=d.kind+u;
+    if(seen[key]) return; seen[key]=1;
+    var s=document.createElement("span"); s.className="badge "+d.cls; s.textContent=d.label;
+    s.title=u; detectRow.appendChild(s);
+  });
+  if(lines.length>1){
+    var s2=document.createElement("span"); s2.className="badge ok";
+    s2.textContent="📋 মোট "+bnNum(lines.length)+"টা লিংক"; detectRow.appendChild(s2);
+  }
+}
+urlInput.addEventListener("input", showDetect);
+urlInput.addEventListener("paste", function(){ setTimeout(showDetect,30); });
+
+function addFromInput(){
+  var lines=urlInput.value.split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean);
+  addErr.className="err-msg"; addErr.textContent="";
+  if(!lines.length){
+    addErr.textContent="আগে অন্তত একটা লিংক বসান।"; addErr.className="err-msg show"; urlInput.focus(); return;
+  }
+  var added=0;
+  lines.forEach(function(u){
+    if(!/^https?:\/\//i.test(u) && !/^magnet:/i.test(u) && !/^ftp:/i.test(u)){
+      u="https://"+u;
+    }
+    createTask(u); added++;
+  });
+  urlInput.value=""; showDetect();
+  pump(); applyFilter();
+  listEl.scrollIntoView({behavior:"smooth", block:"start"});
+}
+$("addBtn").addEventListener("click", addFromInput);
+urlInput.addEventListener("keydown", function(e){
+  if((e.ctrlKey||e.metaKey) && e.key==="Enter") addFromInput();
+});
+$("clearInputBtn").addEventListener("click", function(){ urlInput.value=""; showDetect(); urlInput.focus(); });
+$("pasteBtn").addEventListener("click", function(){
+  if(navigator.clipboard && navigator.clipboard.readText){
+    navigator.clipboard.readText().then(function(txt){
+      if(txt){ urlInput.value = urlInput.value? urlInput.value+"\n"+txt.trim() : txt.trim(); showDetect(); }
+      else { addErr.textContent="ক্লিপবোর্ড খালি।"; addErr.className="err-msg show"; }
+    }).catch(function(){
+      addErr.textContent="ক্লিপবোর্ড পড়ার অনুমতি মেলেনি — Ctrl+V চেপে পেস্ট করুন।"; addErr.className="err-msg show"; urlInput.focus();
+    });
+  } else { urlInput.focus(); }
+});
+document.querySelectorAll("[data-sample]").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    var u=btn.getAttribute("data-sample");
+    createTask(u); pump(); applyFilter();
+    listEl.scrollIntoView({behavior:"smooth", block:"start"});
+  });
+});
+document.querySelectorAll(".tab").forEach(function(tab){
+  tab.addEventListener("click", function(){
+    document.querySelectorAll(".tab").forEach(function(x){x.classList.remove("active");});
+    tab.classList.add("active"); filter=tab.getAttribute("data-filter"); applyFilter();
+  });
+});
+$("concSel").addEventListener("change", pump);
+$("clearDoneBtn").addEventListener("click", function(){
+  tasks.filter(function(t){return t.status==="done"||t.status==="cancelled";})
+    .forEach(function(t){ if(t.blobUrl) URL.revokeObjectURL(t.blobUrl); t.el.root.remove(); });
+  tasks=tasks.filter(function(t){return t.status!=="done"&&t.status!=="cancelled";});
+  applyFilter();
+});
+
+/* live ticker: speed decay + stats */
+setInterval(function(){
+  var changed=false;
+  tasks.forEach(function(t){
+    if(t.status==="downloading"){
+      var now=Date.now();
+      while(t.samples.length>1 && now-t.samples[0].t>4000) t.samples.shift();
+      if(t.samples.length>1){
+        var f=t.samples[0], dt=(now-f.t)/1000;
+        t.speed = dt>0.3 ? Math.max(0,(t.loaded-f.b)/dt) : t.speed;
+      } else if(now-(t.samples.length?t.samples[0].t:0)>4500){ t.speed=0; }
+      updateUI(t); changed=true;
+    }
+  });
+  if(changed||true) refreshStats();
+},600);
+
+refreshStats();
+})();
+</script>
+</body>
+</html>
