@@ -1,35 +1,52 @@
 # 👻 Ghost Downloader Bangla
 
-Ghost Downloader-এর মতো বাংলা ডাউনলোড ম্যানেজার — তিনটা সংস্করণ, একটাই প্রজেক্ট।
+[![Download Manager](https://img.shields.io/badge/type-download%20manager-blue)](https://github.com/tunnabri-ops/ghost-downloader-bangla)
+[![Platforms](https://img.shields.io/badge/platforms-Web%20%7C%20Python%20%7C%20Electron-green)](https://github.com/tunnabri-ops/ghost-downloader-bangla)
+[![Language](https://img.shields.io/badge/UI-Bangla%20%2B%20English-orange)](https://github.com/tunnabri-ops/ghost-downloader-bangla)
 
-- **Original inspiration:** [XiaoYouChR/Ghost-Downloader-3](https://github.com/XiaoYouChR/Ghost-Downloader-3) (16.6k stars, Python/PySide6 — HTTP, Magnet/BT, FTP, M3U8, DASH, YouTube, Bilibili)
-- **এই প্রজেক্ট:** বাংলা-প্রথম, তিন প্ল্যাটফর্মে একই অভিজ্ঞতা।
+**A Bangla-first download manager for everyone — web, Python desktop, and Electron desktop in one project.**
 
-## সংস্করণ
+Inspired by [XiaoYouChR/Ghost-Downloader-3](https://github.com/XiaoYouChR/Ghost-Downloader-3) (16.6k stars — HTTP, Magnet/BT, FTP, M3U8, DASH, YouTube, Bilibili). This project rebuilds the core idea — *one app that downloads anything* — with a Bangla-first interface and three ways to run it.
 
-| সংস্করণ | ফোল্ডার | কীভাবে চালাবেন |
+> বাংলা সংস্করণ নিচে আছে। / Bangla version below.
+
+## ✨ Features
+
+- Paste a link, download it — direct files with a real progress bar, live speed and ETA
+- **Pause / Resume** (continues from where it stopped, when the server supports Range)
+- **Download queue** — many downloads at once, with filters
+- **M3U8 playlists** — downloads every segment and joins them into one `.ts` file
+- **YouTube / Facebook / TikTok** — via yt-dlp (when installed), plus an in-page player
+- **Multi-connection chunked downloads** (Python + desktop) for faster speeds
+- Bangla interface, dark modern design, download history
+
+## 🚀 Three versions
+
+| Version | Folder | Run it |
 |---|---|---|
-| 🌐 ওয়েব অ্যাপ | `web/` | `index.html` ব্রাউজারে খুলুন — ইনস্টল লাগে না |
-| 🐍 Python ডেস্কটপ | `python/` | `pip install -r requirements.txt` → `python app.py` |
-| 🖥️ ডেস্কটপ অ্যাপ | `desktop/` | `npm install` → `npm start` (Windows exe GitHub Actions থেকে) |
+| 🌐 Web app | `web/` | Open `index.html` in a browser — nothing to install |
+| 🐍 Python desktop | `python/` | `pip install -r requirements.txt` → `python app.py` |
+| 🖥️ Desktop app | `desktop/` | `npm install` → `npm start` (Windows `.exe` is built by GitHub Actions) |
 
-## যা পারে
+## ⚠️ Honest limits
 
-- লিংক বসালেই ডাউনলোড — ডাইরেক্ট ফাইল, আসল প্রগ্রেস বার, লাইভ স্পিড, ETA
+- YouTube / Facebook / TikTok downloads need **yt-dlp installed** (`pip install -U yt-dlp`). Without it the app says so in Bangla — it never shows a fake download.
+- Encrypted M3U8 (AES `#EXT-X-KEY`) is not supported.
+- Magnet / BitTorrent / FTP are **not** in this version (the original Ghost Downloader has them).
+- Some sites block direct downloads — use the yt-dlp mode then.
+- The web version follows the browser's CORS rules; some hosts will refuse a direct download.
+
+## 🇧🇩 বাংলা
+
+**Ghost Downloader বাংলা — সবার জন্য বাংলা ডাউনলোড ম্যানেজার।**
+
+- লিংক বসালেই ডাউনলোড — আসল প্রগ্রেস বার, লাইভ স্পিড, ETA
 - Pause / Resume (সার্ভার Range সাপোর্ট করলে থামানো জায়গা থেকে)
 - একসাথে অনেক ডাউনলোডের কিউ
 - M3U8 প্লেলিস্টের সব সেগমেন্ট জোড়া দিয়ে একটা `.ts` ফাইল
 - YouTube / Facebook / TikTok — yt-dlp দিয়ে (ইনস্টল থাকলে), সাথে এমবেড প্লেয়ার
 - বাংলা ইন্টারফেস, ডার্ক ডিজাইন, ডাউনলোড হিস্ট্রি
 
-## সৎ সীমা
+## 📄 License
 
-- YouTube/Facebook/TikTok ডাউনলোডে **yt-dlp ইনস্টল থাকতে হবে** (`pip install -U yt-dlp`); না থাকলে অ্যাপ সেটা বাংলায় বলে দেবে, ভুয়া ডাউনলোড দেখাবে না
-- এনক্রিপ্ট করা M3U8 (AES `#EXT-X-KEY`) সাপোর্ট করে না
-- Magnet / BitTorrent / FTP এই সংস্করণে নেই (মূল Ghost Downloader-এ আছে)
-- কিছু সাইট সরাসরি ডাউনলোড ব্লক করে — তখন yt-dlp মোড ব্যবহার করুন
-- ওয়েব সংস্করণে ব্রাউজারের CORS নিয়ম মেনে চলতে হয়; কিছু হোস্ট সরাসরি নামাতে দেবে না
-
-## লাইসেন্স
-
-MIT — নিজের মতো করে ব্যবহার করুন, ক্রেডিট দিলে ভালো লাগবে।
+MIT — use it however you like; credit is appreciated.
