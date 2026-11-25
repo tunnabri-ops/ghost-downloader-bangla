@@ -1,15 +1,50 @@
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const https = require('https');
 const { spawn } = require('child_process');
+const { extractDownloadUrl, secondsUntilRun, parseSpeedToBps, DailyTotals } = require('./lib');
 
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
 const DOWNLOADS_DIR = path.join(app.getPath('downloads'), 'GhostDownloader');
 fs.mkdirSync(DOWNLOADS_DIR, { recursive: true });
+
+// v1.1.0: today's totals (totals.json) + scheduled downloads (schedules.json),
+// both in the app's userData folder so they survive restarts.
+const TOTALS_FILE = path.join(app.getPath('userData'), 'totals.json');
+const SCHEDULES_FILE = path.join(app.getPath('userData'), 'schedules.json');
+const todayTotals = new DailyTotals(TOTALS_FILE);
+let schedules = []; // { id, url, filename, kind, runAt }
+function loadSchedules() {
+  try {
+    const saved = JSON.parse(fs.readFileSync(SCHEDULES_FILE, 'utf8'));
+    if (Array.isArray(saved)) {
+      // Drop entries whose time passed while the app was closed — a stale
+      // download starting hours late would surprise the user.
+      schedules = saved.filter((e) => {
+        const delay = secondsUntilRun(e.runAt);
+        return delay !== null && delay > 0;
+      });
+    }
+  } catch (_) { schedules = []; }
+}
+function saveSchedules() {
+  try { fs.writeFileSync(SCHEDULES_FILE, JSON.stringify(schedules)); } catch (_) { /* best-effort */ }
+}
+
+/** v1.1.0: count a finished download towards today's totals, then notify the UI. */
+function recordToday(filePath) {
+  let bytes = 0;
+  try {
+    const st = filePath && fs.statSync(filePath);
+    if (st && st.isFile()) bytes = st.size;
+  } catch (_) { /* file unknown (e.g. yt-dlp folder): count the file, 0 bytes */ }
+  todayTotals.add(bytes, 1);
+  send('today-totals', todayTotals.today());
+}
 
 // Small built-in tray icon (green ghost, 32x32 PNG, embedded — no icon file needed).
 const TRAY_ICON_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAjklEQVR4nGNgIACUjsb9pwQTMp8mlpLtGFpZTJRD6GU5TkcMqAPobTmGI0a2AwbKcrgjhpQD2JSlqKqOaAeADETHlKgbWg7AZig2w4lVN/RCYFA4gNTUTfVcQEs89B1ASnBT1QHkJDiqOYDcPD98QoCqaWDAGySjDhgUzfJB4YAB75rRwyEELaaFYwiZDwCS5PJgPMNCegAAAABJRU5ErkJggg==';
@@ -87,6 +122,10 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow();
   createTray();
+  loadSchedules();
+  // v1.1.0: clipboard watch + scheduled-download check (app must be running).
+  setInterval(checkClipboard, 2000);
+  setInterval(checkSchedules, 15000);
   // Feature 9: check for a newer release shortly after startup (silent on failure).
   setTimeout(() => checkForUpdate(false), 3000);
 });
@@ -162,7 +201,7 @@ function startDirectDownload(id, url, filename) {
           ? Math.round((state.total - state.received) / speed) : 0;
         send('download-progress', {
           id, received: state.received, total: state.total,
-          speed: formatSpeed(speed), eta, percent: state.total > 0
+          speed: formatSpeed(speed), speedBps: Math.round(speed), eta, percent: state.total > 0
             ? Math.round((state.received / state.total) * 100) : 0
         });
         state.lastBytes = state.received;
@@ -175,8 +214,9 @@ function startDirectDownload(id, url, filename) {
         state.status = 'done';
         send('download-progress', {
           id, received: state.received, total: state.total || state.received,
-          speed: '0 B/s', eta: 0, percent: 100
+          speed: '0 B/s', speedBps: 0, eta: 0, percent: 100
         });
+        recordToday(filePath);
         send('download-done', { id, filePath });
       }
     });
@@ -283,12 +323,14 @@ async function downloadM3U8(id, url, filename) {
       const speed = elapsed > 0 ? (i + 1) / elapsed : 0;
       send('download-progress', {
         id, received: i + 1, total: segments.length,
-        speed: speed.toFixed(1) + ' সেগমেন্ট/সে', eta: speed > 0 ? Math.round((segments.length - i - 1) / speed) : 0,
+        speed: speed.toFixed(1) + ' সেগমেন্ট/সে', speedBps: 0, eta: speed > 0 ? Math.round((segments.length - i - 1) / speed) : 0,
         percent: Math.round(((i + 1) / segments.length) * 100)
       });
     }
-    out.end();
-    send('download-done', { id, filePath });
+    out.end(() => {
+      recordToday(filePath);
+      send('download-done', { id, filePath });
+    });
   } catch (err) {
     send('download-error', { id, message: 'M3U8 ডাউনলোড ব্যর্থ: ' + err.message });
   }
@@ -301,24 +343,23 @@ ipcMain.on('download-m3u8', (_event, payload) => {
 });
 
 // ---------- YouTube / social video via yt-dlp (must be installed) ----------
-ipcMain.on('yt-dlp-download', (_event, payload) => {
-  const isAudio = payload.format === 'audio';
+function startYtDlpDownload(id, url, format, filename) {
+  const isAudio = format === 'audio';
   const ext = isAudio ? 'mp3' : 'mp4';
-  const filename = (payload.filename || 'video-' + Date.now()) + '.' + ext;
   const outPath = path.join(DOWNLOADS_DIR, '%(title)s.' + ext);
   const args = isAudio
-    ? ['-x', '--audio-format', 'mp3', '--newline', '-o', outPath, payload.url]
-    : ['-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]', '--merge-output-format', 'mp4', '--newline', '-o', outPath, payload.url];
+    ? ['-x', '--audio-format', 'mp3', '--newline', '-o', outPath, url]
+    : ['-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]', '--merge-output-format', 'mp4', '--newline', '-o', outPath, url];
   let proc;
   try {
     proc = spawn('yt-dlp', args);
   } catch (err) {
-    send('download-error', { id: payload.id, message: 'yt-dlp চালু করা যায়নি: ' + err.message });
+    send('download-error', { id, message: 'yt-dlp চালু করা যায়নি: ' + err.message });
     return;
   }
   proc.on('error', () => {
     send('download-error', {
-      id: payload.id,
+      id,
       message: 'yt-dlp পাওয়া যায়নি — প্রথমে ইনস্টল করুন: pip install -U yt-dlp (তারপর আবার চেষ্টা করুন)'
     });
   });
@@ -331,8 +372,8 @@ ipcMain.on('yt-dlp-download', (_event, payload) => {
       const m = line.match(/\[download\]\s+(\d+(?:\.\d+)?)%.*?of\s+([\d.]+(?:KiB|MiB|GiB)).*?at\s+([\d.]+(?:KiB|MiB|GiB)\/s).*?ETA\s+(\d+:\d+)/);
       if (m) {
         send('download-progress', {
-          id: payload.id, received: 0, total: 0,
-          speed: m[3], eta: m[4], percent: Math.round(parseFloat(m[1]))
+          id, received: 0, total: 0,
+          speed: m[3], speedBps: parseSpeedToBps(m[3]), eta: m[4], percent: Math.round(parseFloat(m[1]))
         });
       }
     }
@@ -340,11 +381,18 @@ ipcMain.on('yt-dlp-download', (_event, payload) => {
   proc.stderr.on('data', () => { /* yt-dlp warnings go here; ignore */ });
   proc.on('close', (code) => {
     if (code === 0) {
-      send('download-done', { id: payload.id, filePath: DOWNLOADS_DIR });
+      // yt-dlp names the file itself, so no single file path is known —
+      // count the file, 0 bytes (see README: today's totals skip yt-dlp bytes).
+      recordToday(null);
+      send('download-done', { id, filePath: DOWNLOADS_DIR });
     } else {
-      send('download-error', { id: payload.id, message: 'yt-dlp ব্যর্থ হয়েছে (exit ' + code + ') — লিংকটি যাচাই করুন।' });
+      send('download-error', { id, message: 'yt-dlp ব্যর্থ হয়েছে (exit ' + code + ') — লিংকটি যাচাই করুন।' });
     }
   });
+}
+
+ipcMain.on('yt-dlp-download', (_event, payload) => {
+  startYtDlpDownload(payload.id, payload.url, payload.format, payload.filename);
 });
 
 // ---------- misc ----------
@@ -353,6 +401,79 @@ ipcMain.on('open-downloads-folder', () => {
 });
 
 ipcMain.handle('get-downloads-dir', () => DOWNLOADS_DIR);
+
+// ---------- v1.1.0: clipboard monitor ----------
+// Polls the system clipboard every 2s while the app runs. When a fresh
+// http(s)/magnet link appears, the renderer is asked to offer it — the
+// link is never added automatically, and each URL is offered only once.
+let clipMonitorEnabled = true;
+let lastClipText = '';
+const clipOffered = new Set();
+function checkClipboard() {
+  if (!clipMonitorEnabled) return;
+  let text = '';
+  try { text = clipboard.readText(); } catch (_) { return; }
+  if (!text || text === lastClipText) return;
+  lastClipText = text;
+  const url = extractDownloadUrl(text);
+  if (!url || clipOffered.has(url)) return;
+  clipOffered.add(url);
+  send('clipboard-link-found', { url });
+}
+ipcMain.on('clipboard-monitor-set', (_event, enabled) => {
+  clipMonitorEnabled = !!enabled;
+});
+
+// ---------- v1.1.0: scheduled downloads ----------
+// Schedules persist in schedules.json; every 15s the due ones start.
+// The app (even hidden in the tray) must be running at the due time.
+function dispatchDownload(entry) {
+  if (entry.kind === 'm3u8') {
+    const name = entry.filename.endsWith('.ts') ? entry.filename : entry.filename.replace(/\.[^.]+$/, '') + '.ts';
+    downloadM3U8(entry.id, entry.url, name);
+  } else if (entry.kind === 'video' || entry.kind === 'audio') {
+    startYtDlpDownload(entry.id, entry.url, entry.kind, entry.filename);
+  } else {
+    startDirectDownload(entry.id, entry.url, entry.filename);
+  }
+}
+function checkSchedules() {
+  const now = Date.now();
+  const due = schedules.filter((e) => {
+    const delay = secondsUntilRun(e.runAt, now);
+    return delay !== null && delay <= 0;
+  });
+  if (!due.length) return;
+  schedules = schedules.filter((e) => due.indexOf(e) < 0);
+  saveSchedules();
+  send('schedule-updated', schedules);
+  for (const entry of due) {
+    send('schedule-due', entry);
+    dispatchDownload(entry);
+  }
+}
+ipcMain.on('schedule-download', (_event, payload) => {
+  if (!payload || !payload.url || !payload.runAt) return;
+  if (secondsUntilRun(payload.runAt) === null || secondsUntilRun(payload.runAt) <= 0) return;
+  schedules.push({
+    id: payload.id || ('sched-' + Date.now()),
+    url: payload.url,
+    filename: payload.filename || safeFilename(payload.url, 'download-' + Date.now()),
+    kind: payload.kind || 'direct',
+    runAt: payload.runAt
+  });
+  saveSchedules();
+  send('schedule-updated', schedules);
+});
+ipcMain.on('schedule-cancel', (_event, id) => {
+  schedules = schedules.filter((e) => e.id !== id);
+  saveSchedules();
+  send('schedule-updated', schedules);
+});
+ipcMain.handle('get-schedules', () => schedules);
+
+// ---------- v1.1.0: today's totals ----------
+ipcMain.handle('get-today-totals', () => todayTotals.today());
 
 // ---------- update check (Feature 9): never downloads or installs anything ----------
 const RELEASES_API = 'https://api.github.com/repos/tunnabri-ops/ghost-downloader-bangla/releases/latest';

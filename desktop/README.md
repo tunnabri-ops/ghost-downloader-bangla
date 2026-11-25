@@ -1,11 +1,14 @@
 # 👻 Ghost Downloader Bangla — ডেস্কটপ অ্যাপ
 
-বাংলা ডাউনলোড ম্যানেজার (ডেস্কটপ সংস্করণ) — XiaoYouChR/Ghost-Downloader-3 থেকে অনুপ্রাণিত, বাংলায় নতুন করে বানানো।
+বাংলা ডাউনলোড ম্যানেজার (ডেস্কটপ সংস্করণ) — বাংলায় নতুন করে বানানো।
 
 - **ডাইরেক্ট ফাইল** — HTTP/HTTPS লিংক থেকে ডাউনলোড, Pause/Resume (Range header), স্পিড + ETA
 - **M3U8 ভিডিও** — প্লেলিস্টের সেগমেন্ট ডাউনলোড করে একটাই `.ts` ফাইলে জোড়া দেয়
 - **YouTube / ভিডিও** — yt-dlp দিয়ে ভিডিও (1080p) বা শুধু অডিও MP3
 - **ইতিহাস** — সম্পন্ন ডাউনলোডের তালিকা থাকে (localStorage)
+- **📋 ক্লিপবোর্ড নজরদারি (v1.1.0)** — কপি করা লিংক পেলে “যোগ করবেন?” জিজ্ঞেস করে; নিজে থেকে যোগ করে না, একই লিংক দুবার জিজ্ঞেস করে না (চেকবক্স দিয়ে বন্ধ করা যায়)
+- **⏰ নির্ধারিত ডাউনলোড (v1.1.0)** — তারিখ ও সময় বেছে নিলে অ্যাপ (ট্রেসহ) খোলা থাকলে সেই সময়ে নিজে থেকে শুরু হয়; সময়সূচি সেভ থাকে, অ্যাপ বন্ধ থাকতে সময় পার হয়ে গেলে সেটা বাদ যায়
+- **📈 লাইভ গতি গ্রাফ + আজকের হিসাব (v1.1.0)** — শেষ ৬০ সেকেন্ডের মোট গতির গ্রাফ, আর “আজ নামানো” মোট (বাইট + ফাইল) মাঝরাতে শূন্য হয়; yt-dlp ভিডিওর শুধু ফাইল সংখ্যা গোনা হয়, বাইট নয়
 
 ## চালানো (লোকালে)
 
@@ -33,7 +36,7 @@ npm run build
 
 # Ghost Downloader Bangla — Desktop App (English)
 
-A Bangla download manager for desktop, inspired by XiaoYouChR/Ghost-Downloader-3.
+A Bangla download manager for desktop.
 
 - **Direct files** — HTTP/HTTPS download with Pause/Resume (Range header), speed + ETA
 - **M3U8 video** — downloads playlist segments and concatenates them into a single `.ts` file
