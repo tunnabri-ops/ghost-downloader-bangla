@@ -12,12 +12,14 @@ Features:
 
 Only dependency: requests.
 """
+import json
 import os
 import re
 import shutil
 import subprocess
 import threading
 import time
+from datetime import date, datetime
 from urllib.parse import urljoin
 
 import requests
@@ -25,7 +27,8 @@ import requests
 CHUNK_SIZE = 1024 * 256  # 256 KB per read
 DEFAULT_CONNECTIONS = 4
 MIN_CHUNKED_SIZE = 1024 * 1024  # only chunk files >= 1 MB
-USER_AGENT = "Ghost-Downloader-Bangla/1.0 (Python/requests)"
+USER_AGENT = "Ghost-Downloader-Bangla/1.1 (Python/requests)"
+APP_VERSION = "1.1.0"
 
 
 def format_size(n):
@@ -66,6 +69,135 @@ def filename_from_url(url):
 
 class DownloadError(Exception):
     pass
+
+
+# ---------------------------------------------------------------------------
+# v1.1.0 helpers: clipboard URL detection, scheduled downloads, today's
+# totals, and speed samples for the live graph. All pure logic (no GUI),
+# so they are covered by test_features.py.
+# ---------------------------------------------------------------------------
+
+_URL_RE = re.compile(r"https?://[^\s\"'<>]+", re.IGNORECASE)
+_MAGNET_RE = re.compile(r"magnet:\?[^\s\"'<>]+", re.IGNORECASE)
+_TRAILING_PUNCT = ".,;:!?\"'’)>]}"
+
+
+def extract_download_url(text):
+    """Return the first http(s) URL or magnet link found in *text*, else None.
+
+    Plain text with no link returns None; a URL buried in a sentence is
+    found, and trailing punctuation (e.g. a full stop at a sentence end)
+    is stripped.
+    """
+    if not text:
+        return None
+    match = _URL_RE.search(text)
+    if match:
+        return match.group(0).rstrip(_TRAILING_PUNCT)
+    match = _MAGNET_RE.search(text)
+    if match:
+        return match.group(0).rstrip(_TRAILING_PUNCT)
+    return None
+
+
+def parse_schedule_time(value):
+    """Parse 'YYYY-MM-DD HH:MM' (or ISO 'YYYY-MM-DDTHH:MM[:SS]') -> datetime.
+
+    Returns None for anything unparseable — the caller shows an error
+    instead of scheduling a bad time.
+    """
+    if not value or not isinstance(value, str):
+        return None
+    value = value.strip().replace("T", " ")
+    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(value, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def seconds_until_run(when, now=None):
+    """Seconds from *now* until *when* (a datetime or a parseable string).
+
+    Positive = in the future, zero/negative = already due (start now).
+    Returns None when *when* cannot be parsed.
+    """
+    if isinstance(when, str):
+        when = parse_schedule_time(when)
+    if when is None:
+        return None
+    if now is None:
+        now = datetime.now()
+    return (when - now).total_seconds()
+
+
+class DailyTotals:
+    """Bytes + file count downloaded 'today', persisted in a small JSON file.
+
+    Rolls over automatically at midnight: the first use on a new calendar
+    day starts from zero. A file stamped with an older date is ignored.
+    """
+
+    def __init__(self, path):
+        self.path = path
+        self.date = date.today().isoformat()
+        self.bytes = 0
+        self.files = 0
+        self.load()
+
+    def load(self):
+        try:
+            with open(self.path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            return
+        if data.get("date") == date.today().isoformat():
+            self.date = data["date"]
+            self.bytes = int(data.get("bytes", 0))
+            self.files = int(data.get("files", 0))
+
+    def save(self):
+        try:
+            with open(self.path, "w", encoding="utf-8") as f:
+                json.dump(
+                    {"date": self.date, "bytes": self.bytes, "files": self.files},
+                    f,
+                )
+        except OSError:
+            pass
+
+    def _rollover(self):
+        today = date.today().isoformat()
+        if self.date != today:
+            self.date = today
+            self.bytes = 0
+            self.files = 0
+
+    def add(self, nbytes, files=1):
+        self._rollover()
+        self.bytes += max(0, int(nbytes or 0))
+        self.files += files
+        self.save()
+
+    def today(self):
+        self._rollover()
+        return self.bytes, self.files
+
+
+class SpeedSamples:
+    """Capped rolling list of recent speed samples (bytes/sec) for the graph."""
+
+    def __init__(self, max_len=60):
+        self.max_len = max_len
+        self.samples = []
+
+    def add(self, value):
+        self.samples.append(float(value or 0))
+        del self.samples[: max(0, len(self.samples) - self.max_len)]
+
+    def values(self):
+        return list(self.samples)
 
 
 class Task:

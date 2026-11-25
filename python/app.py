@@ -1,9 +1,13 @@
-"""Ghost Downloader Bangla — PySide6 desktop download manager.
+"""Ghost Downloader Bangla v1.1.0 — PySide6 desktop download manager.
 
 Bangla UI: paste a URL, Add, and the download runs in the list with
 progress bar, speed and ETA. Pause / Resume / Cancel per task.
 Downloads are saved to ~/Downloads/GhostDownloaderBangla by default.
 Finished downloads are recorded in downloads.json next to this file.
+
+v1.1.0: clipboard monitor (offers to add a copied link), scheduled
+downloads (pick a date/time, starts automatically while the app is open),
+live speed graph + today's totals (persisted in totals.json).
 
 Run:  python app.py
 """
@@ -14,24 +18,62 @@ import subprocess
 import sys
 import threading
 
-from PySide6.QtCore import Qt, QTimer, Signal, QObject
+from PySide6.QtCore import QDateTime, Qt, QTimer, Signal, QObject
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLineEdit, QPushButton, QTableWidget, QTableWidgetItem,
     QProgressBar, QMessageBox, QFileDialog, QLabel,
-    QComboBox, QCheckBox, QDialog,
+    QComboBox, QCheckBox, QDialog, QDateTimeEdit,
+    QListWidget, QListWidgetItem,
 )
 
 from downloader import (
-    Task, format_size, format_speed, format_eta,
+    APP_VERSION, DailyTotals, SpeedSamples, Task,
+    extract_download_url, format_size, format_speed, format_eta,
     is_m3u8_url, is_video_site_url, yt_dlp_available,
     download_with_yt_dlp, filename_from_url, DownloadError,
+    parse_schedule_time, seconds_until_run,
 )
 
 DOWNLOAD_DIR = os.path.join(os.path.expanduser("~"), "Downloads", "GhostDownloaderBangla")
 HISTORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "downloads.json")
+TOTALS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "totals.json")
+SCHEDULES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schedules.json")
 
 COLUMNS = ["নাম", "সাইজ", "অগ্রগতি", "গতি", "সময় বাকি", "অবস্থা"]
+
+
+class SpeedGraph(QWidget):
+    """Tiny live speed graph: a line plot of the last 60 total-speed samples."""
+
+    def __init__(self, samples):
+        super().__init__()
+        self.samples = samples
+        self.setMinimumHeight(70)
+
+    def paintEvent(self, _event):
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QColor("#101820"))
+        values = self.samples.values()
+        if len(values) < 2:
+            painter.setPen(QColor("#85958b"))
+            painter.drawText(self.rect(), Qt.AlignCenter, "গতি গ্রাফ — ডাউনলোড চললে এখানে লাইন উঠবে")
+            return
+        peak = max(values) or 1.0
+        width = self.width()
+        height = self.height()
+        step = width / (self.samples.max_len - 1)
+        painter.setPen(QPen(QColor("#2ee6a8"), 2))
+        prev = None
+        for i, value in enumerate(values):
+            x = int(i * step)
+            y = int(height - 6 - (value / peak) * (height - 12))
+            if prev is not None:
+                painter.drawLine(prev[0], prev[1], x, y)
+            prev = (x, y)
+        painter.setPen(QColor("#9db0a3"))
+        painter.drawText(6, 14, format_speed(peak) + " (সর্বোচ্চ)")
 
 
 class Bridge(QObject):
@@ -42,11 +84,20 @@ class Bridge(QObject):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Ghost Downloader Bangla — ভূত ডাউনলোডার")
-        self.resize(900, 500)
+        self.setWindowTitle(f"Ghost Downloader Bangla v{APP_VERSION} — ভূত ডাউনলোডার")
+        self.resize(900, 640)
         self.tasks = []          # list[Task]
         self.bridge = Bridge()
         self.bridge.updated.connect(self.refresh_row)
+        # v1.1.0: today's totals + speed-graph samples.
+        self.totals = DailyTotals(TOTALS_FILE)
+        self.speed_samples = SpeedSamples(max_len=60)
+        # v1.1.0: clipboard monitor state.
+        self._last_clip_text = ""
+        self._clip_offered = set()
+        # v1.1.0: scheduled downloads: list of {id, url, run_at}.
+        self.schedules = []
+        self._sched_seq = 0
         # Auto-shutdown state.
         self._ytdlp_active = False   # a yt-dlp download is running
         self._had_downloads = False  # any download has started this session
@@ -95,6 +146,45 @@ class MainWindow(QMainWindow):
         opts.addStretch(1)
         layout.addLayout(opts)
 
+        # v1.1.0: clipboard monitor — a copied link is offered, never auto-added.
+        clip_row = QHBoxLayout()
+        self.clip_check = QCheckBox("📋 ক্লিপবোর্ড নজরদারি (কপি করা লিংক ধরবে)")
+        self.clip_check.setChecked(True)
+        clip_row.addWidget(self.clip_check)
+        clip_row.addWidget(QLabel("কপি করা লিংক পেলে জিজ্ঞেস করবে — নিজে থেকে যোগ করবে না।"))
+        clip_row.addStretch(1)
+        layout.addLayout(clip_row)
+
+        # v1.1.0: scheduled download — pick a date/time, starts while the app is open.
+        sched_row = QHBoxLayout()
+        sched_row.addWidget(QLabel("⏰ নির্ধারিত সময়:"))
+        self.sched_time = QDateTimeEdit()
+        self.sched_time.setDisplayFormat("yyyy-MM-dd HH:mm")
+        self.sched_time.setDateTime(QDateTime.currentDateTime().addSecs(3600))
+        self.sched_time.setMinimumDateTime(QDateTime.currentDateTime())
+        sched_row.addWidget(self.sched_time)
+        self.sched_btn = QPushButton("⏰ সময়মতো নামান")
+        self.sched_btn.clicked.connect(self.schedule_download)
+        sched_row.addWidget(self.sched_btn)
+        self.sched_cancel_btn = QPushButton("বাতিল")
+        self.sched_cancel_btn.clicked.connect(self.cancel_schedule)
+        sched_row.addWidget(self.sched_cancel_btn)
+        sched_row.addStretch(1)
+        layout.addLayout(sched_row)
+        self.sched_list = QListWidget()
+        self.sched_list.setMaximumHeight(64)
+        layout.addWidget(self.sched_list)
+        layout.addWidget(QLabel("নির্ধারিত ডাউনলোড শুধু অ্যাপ খোলা থাকলেই শুরু হবে।"))
+
+        # v1.1.0: live speed graph + today's totals.
+        totals_row = QHBoxLayout()
+        self.totals_label = QLabel("📊 আজ নামানো: —")
+        totals_row.addWidget(self.totals_label)
+        totals_row.addStretch(1)
+        layout.addLayout(totals_row)
+        self.speed_graph = SpeedGraph(self.speed_samples)
+        layout.addWidget(self.speed_graph)
+
         # Download list
         self.table = QTableWidget(0, len(COLUMNS))
         self.table.setHorizontalHeaderLabels(COLUMNS)
@@ -126,6 +216,16 @@ class MainWindow(QMainWindow):
         self.timer.start(500)
 
         self.load_history()
+        self._update_totals_label()
+
+        # v1.1.0: clipboard watch (every 2s) + schedule check (every 15s).
+        self.clip_timer = QTimer(self)
+        self.clip_timer.timeout.connect(self._check_clipboard)
+        self.clip_timer.start(2000)
+        self.sched_timer = QTimer(self)
+        self.sched_timer.timeout.connect(self._check_schedules)
+        self.sched_timer.start(15000)
+        self.load_schedules()
 
     # -- history ------------------------------------------------------------
     def load_history(self):
@@ -163,15 +263,19 @@ class MainWindow(QMainWindow):
             json.dump(history, f, ensure_ascii=False, indent=2)
 
     # -- adding ---------------------------------------------------------------
-    def add_download(self):
-        url = self.url_input.text().strip()
-        if not url:
-            QMessageBox.warning(self, "লিংক নেই", "প্রথমে একটি ডাউনলোড লিংক বসান।")
-            return
+    def add_download(self, url=None):
+        """Start a download. With no *url* the link comes from the input box
+        (button/Enter); the scheduler passes the URL directly."""
+        if url is None:
+            url = self.url_input.text().strip()
+            if not url:
+                QMessageBox.warning(self, "লিংক নেই", "প্রথমে একটি ডাউনলোড লিংক বসান।")
+                return
+            self.url_input.clear()
+        url = url.strip()
         if not url.startswith(("http://", "https://")):
             QMessageBox.warning(self, "ভুল লিংক", "লিংকটি http:// বা https:// দিয়ে শুরু হতে হবে।")
             return
-        self.url_input.clear()
         # A new download cancels any pending auto-shutdown countdown.
         self._cancel_shutdown()
         self._shutdown_offered = False
@@ -264,12 +368,33 @@ class MainWindow(QMainWindow):
         self.table.setItem(row, 5, QTableWidgetItem(status_bn))
         if task.status == "done":
             self.save_history(task)
+            # v1.1.0: count the finished file once towards today's totals.
+            if not getattr(task, "_totals_recorded", False):
+                task._totals_recorded = True
+                if os.path.exists(task.dest):
+                    self.totals.add(os.path.getsize(task.dest))
+                elif task.total:
+                    self.totals.add(task.downloaded)
+                self._update_totals_label()
             self.status_label.setText(f"সম্পন্ন: {task.name}")
+
+    def _update_totals_label(self):
+        nbytes, nfiles = self.totals.today()
+        self.totals_label.setText(
+            f"📊 আজ নামানো: {format_size(nbytes)} • {nfiles} ফাইল"
+        )
 
     def refresh_all(self):
         for task in self.tasks:
             if task.status == "downloading":
                 self.refresh_row(task)
+        # v1.1.0: feed the live speed graph with the total speed of all
+        # active downloads, then repaint it.
+        total_speed = sum(
+            t.speed for t in self.tasks if t.status == "downloading"
+        )
+        self.speed_samples.add(total_speed)
+        self.speed_graph.update()
         self._maybe_offer_shutdown()
 
     # -- actions --------------------------------------------------------------
@@ -299,6 +424,130 @@ class MainWindow(QMainWindow):
         if task:
             task.cancel()
             self.refresh_row(task)
+
+    # -- v1.1.0: clipboard monitor -------------------------------------------
+    def _check_clipboard(self):
+        """Poll the clipboard; if a fresh download link appears, offer to add it.
+
+        Uses Qt's own clipboard (no extra dependency). Magnet links are
+        detected by the engine but not offered here — this app cannot
+        download torrents, so offering one would be a fake promise.
+        """
+        if not self.clip_check.isChecked():
+            return
+        try:
+            text = QApplication.clipboard().text()
+        except Exception:
+            return
+        if not text or text == self._last_clip_text:
+            return
+        self._last_clip_text = text
+        url = extract_download_url(text)
+        if not url or not url.startswith(("http://", "https://")):
+            return
+        if url in self._clip_offered:
+            return
+        if any(t.url == url for t in self.tasks):
+            return
+        if self.url_input.text().strip() == url:
+            return
+        self._clip_offered.add(url)
+        answer = QMessageBox.question(
+            self, "ক্লিপবোর্ডে লিংক পাওয়া গেছে",
+            f"ক্লিপবোর্ডে এই ডাউনলোড লিংকটি আছে:\n{url}\n\nযোগ করবেন?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes,
+        )
+        if answer == QMessageBox.Yes:
+            self.url_input.setText(url)
+            self.add_download()
+
+    # -- v1.1.0: scheduled downloads ------------------------------------------
+    def schedule_download(self):
+        url = self.url_input.text().strip()
+        if not url:
+            QMessageBox.warning(self, "লিংক নেই", "প্রথমে একটি ডাউনলোড লিংক বসান।")
+            return
+        if not url.startswith(("http://", "https://")):
+            QMessageBox.warning(self, "ভুল লিংক", "লিংকটি http:// বা https:// দিয়ে শুরু হতে হবে।")
+            return
+        run_at = self.sched_time.dateTime().toPython()
+        delay = seconds_until_run(run_at)
+        if delay is None or delay <= 0:
+            QMessageBox.warning(
+                self, "সময় পার হয়ে গেছে",
+                "নির্ধারিত সময়টি ভবিষ্যতের হতে হবে — এখনকার চেয়ে পরের সময় বেছে নিন।",
+            )
+            return
+        self._sched_seq += 1
+        entry = {
+            "id": self._sched_seq,
+            "url": url,
+            "run_at": run_at.strftime("%Y-%m-%d %H:%M"),
+        }
+        self.schedules.append(entry)
+        self.save_schedules()
+        self.render_schedules()
+        self.url_input.clear()
+        self.status_label.setText(f"⏰ নির্ধারিত: {url} — {entry['run_at']}")
+
+    def _check_schedules(self):
+        """Start any schedule whose time has come (app must be open)."""
+        now = QDateTime.currentDateTime().toPython()
+        due = []
+        for entry in self.schedules:
+            run_at = parse_schedule_time(entry["run_at"])
+            if run_at is not None and run_at <= now:
+                due.append(entry)
+        for entry in due:
+            self.schedules.remove(entry)
+            self.status_label.setText(f"⏰ নির্ধারিত ডাউনলোড শুরু: {entry['url']}")
+            self.add_download(url=entry["url"])
+        if due:
+            self.save_schedules()
+            self.render_schedules()
+
+    def render_schedules(self):
+        self.sched_list.clear()
+        for entry in self.schedules:
+            item = QListWidgetItem(f"⏰ {entry['run_at']} — {entry['url']}")
+            item.setData(Qt.UserRole, entry["id"])
+            self.sched_list.addItem(item)
+
+    def cancel_schedule(self):
+        item = self.sched_list.currentItem()
+        if item is None:
+            QMessageBox.information(self, "কিছু বাছা হয়নি", "তালিকা থেকে একটি নির্ধারিত ডাউনলোড বাছুন।")
+            return
+        entry_id = item.data(Qt.UserRole)
+        self.schedules = [e for e in self.schedules if e["id"] != entry_id]
+        self.save_schedules()
+        self.render_schedules()
+
+    def load_schedules(self):
+        if not os.path.exists(SCHEDULES_FILE):
+            return
+        try:
+            with open(SCHEDULES_FILE, encoding="utf-8") as f:
+                saved = json.load(f)
+        except (OSError, ValueError):
+            return
+        for entry in saved:
+            # Drop stale entries whose time passed while the app was closed.
+            if parse_schedule_time(entry.get("run_at", "")) is None:
+                continue
+            if seconds_until_run(entry["run_at"]) is not None and seconds_until_run(entry["run_at"]) <= 0:
+                continue
+            self._sched_seq = max(self._sched_seq, int(entry.get("id", 0)))
+            self.schedules.append(entry)
+        self.render_schedules()
+
+    def save_schedules(self):
+        try:
+            with open(SCHEDULES_FILE, "w", encoding="utf-8") as f:
+                json.dump(self.schedules, f, ensure_ascii=False, indent=2)
+        except OSError:
+            pass
 
     # -- auto-shutdown --------------------------------------------------------
     def _on_shutdown_toggled(self, checked):
