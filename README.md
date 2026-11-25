@@ -6,6 +6,8 @@
 
 **A Bangla-first download manager for everyone — web, Python desktop, and Electron desktop in one project.**
 
+**Current version: v1.1.0** — see [What's new in v1.1.0](#-whats-new-in-v110) below.
+
 **One app that downloads anything — with a Bangla-first interface and three ways to run it.**
 
 > বাংলা সংস্করণ নিচে আছে। / Bangla version below.
@@ -27,6 +29,12 @@
 - **Auto-shutdown** (Python desktop) — optionally shut the computer down when the queue finishes (60-second countdown, cancellable)
 - **Minimize to tray** (Electron desktop) — closing the window hides it in the system tray
 - **Update check** (Electron desktop) — checks GitHub releases and tells you when a newer version is out
+
+## 🆕 What's new in v1.1.0
+
+- **📋 Clipboard monitor** — a copied download link is detected and offered ("link found — add?"), never added silently. Electron and Python watch the clipboard while the app runs; the web version checks once when you tap the button (browsers don't allow silent clipboard reads).
+- **⏰ Scheduled download** — pick a date and time and the download starts automatically then. Electron and Python keep the schedule saved and check every 15 seconds; the web version uses an in-page timer, so it only works while the page stays open.
+- **📈 Speed graph + today's totals** — a live graph of the last 60 seconds of download speed, and a "downloaded today" total (bytes + file count) that resets at midnight. Saved in localStorage on web, in a small JSON file on desktop/Python.
 
 ## 🚀 Three versions
 
