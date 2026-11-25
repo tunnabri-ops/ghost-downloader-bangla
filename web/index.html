@@ -121,6 +121,14 @@
   .info li{margin-bottom:5px}
   .info li b{color:var(--text)}
   .foot{margin-top:26px;color:var(--faint);font-size:13.5px;text-align:center}
+  .sched{margin-top:16px;border-top:1px dashed var(--border-soft);padding-top:14px}
+  .sched-row{display:flex;gap:10px;flex-wrap:wrap}
+  .sched-row input[type="datetime-local"]{flex:1;min-width:220px;background:var(--bg2);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:9px 12px;font-size:15px;color-scheme:dark}
+  html[data-theme="light"] .sched-row input[type="datetime-local"]{color-scheme:light}
+  .sched-item{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 2px;border-top:1px solid var(--border-soft);font-size:14px}
+  .sched-item span{word-break:break-all}
+  #clipOffer.show{background:var(--accent-dim);border-color:#1d5c44;color:var(--text)}
+  #clipOffer .btn{margin-left:8px}
   .hist-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
   .hist-item{display:flex;gap:10px;align-items:center;padding:9px 2px;border-top:1px solid var(--border-soft);font-size:14px}
   .hist-item .hn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -151,6 +159,7 @@
       <div class="stat"><b class="mono" id="statActive">০</b><span>চলমান</span></div>
       <div class="stat"><b class="mono" id="statDone">০</b><span>সম্পন্ন</span></div>
       <div class="stat"><b class="mono" id="statGot">0 B</b><span>মোট নামানো</span></div>
+      <div class="stat"><b class="mono" id="statToday">0 B • ০ ফাইল</b><span>আজ নামানো</span></div>
     </div>
     <button class="btn small" id="themeBtn" type="button">☀️ লাইট থিম</button>
   </div>
@@ -166,8 +175,11 @@
     <div class="actions">
       <button class="btn primary" id="addBtn" type="button">⬇ ডাউনলোড শুরু করুন</button>
       <button class="btn" id="pasteBtn" type="button">📋 ক্লিপবোর্ড থেকে পেস্ট</button>
+      <button class="btn" id="clipCheckBtn" type="button">🔍 ক্লিপবোর্ডে লিংক আছে কি?</button>
       <button class="btn ghostbtn" id="clearInputBtn" type="button">মুছে ফেলুন</button>
     </div>
+    <div class="err-msg" id="clipOffer" role="status"></div>
+    <p style="font-size:13px;color:var(--faint);margin:10px 0 0">📌 সত্যিটা: ব্রাউজার কোনো ওয়েবসাইটকে নীরবে ক্লিপবোর্ড পড়তে দেয় না — “ক্লিপবোর্ডে লিংক আছে কি?” চাপলেই শুধু একবার দেখা হয়।</p>
     <div class="samples">
       <p>আগে টেস্ট করে দেখতে চান? এই লিংকগুলো ব্রাউজার থেকে সরাসরি ডাউনলোড হয়:</p>
       <div class="chips">
@@ -175,6 +187,15 @@
         <button class="chip" type="button" data-sample="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4">🐰 Big Buck Bunny (বড় ফাইল)</button>
         <button class="chip" type="button" data-sample="https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8">📡 M3U8 লাইভ-স্ট্রিম টেস্ট</button>
       </div>
+    </div>
+    <div class="sched">
+      <p style="margin:0 0 8px;font-size:13.5px;color:var(--faint)">⏰ নির্ধারিত ডাউনলোড — উপরে লিংক বসিয়ে সময় বেছে নিন:</p>
+      <div class="sched-row">
+        <input type="datetime-local" id="schedTime" aria-label="নির্ধারিত তারিখ ও সময়">
+        <button class="btn" id="schedBtn" type="button">⏰ সময়মতো নামান</button>
+      </div>
+      <div id="schedList"></div>
+      <p style="font-size:13px;color:var(--faint);margin:8px 0 0">এই পেজ খোলা থাকলেই শুধু নির্ধারিত সময়ে শুরু হবে — পেজ বন্ধ করলে হবে না।</p>
     </div>
   </section>
 
@@ -226,6 +247,12 @@
     <p id="histEmpty" style="color:var(--faint);font-size:13.5px;margin:6px 0 0">এখনো কোনো সম্পন্ন ডাউনলোড নেই — নামানো ফাইল এখানে জমা হবে।</p>
   </section>
 
+  <section class="card" id="graphCard" style="margin-top:18px">
+    <div class="hist-head"><h2 style="font-size:18px">📈 লাইভ গতি গ্রাফ</h2><span id="todayLine" style="font-size:14px;color:var(--muted)">📊 আজ নামানো: 0 B • ০ ফাইল</span></div>
+    <canvas id="speedGraph" width="900" height="120" style="width:100%;height:120px;display:block;border-radius:10px;margin-top:10px"></canvas>
+    <p style="color:var(--faint);font-size:13.5px;margin:8px 0 0">শেষ ৬০ সেকেন্ডের মোট ডাউনলোড গতি। আজকের হিসাব মাঝরাতে শূন্য হয়ে যায়।</p>
+  </section>
+
   <!-- Info -->
   <div class="grid">
     <section class="card info">
@@ -252,7 +279,7 @@
     </section>
   </div>
 
-  <p class="foot">ডাউনলোড হয় আপনার নিজের ব্রাউজার থেকেই — কোনো সার্ভারে ফাইল ওঠে না। কপিরাইটযুক্ত কনটেন্ট নামানোর দায় নিজের।</p>
+  <p class="foot">ডাউনলোড হয় আপনার নিজের ব্রাউজার থেকেই — কোনো সার্ভারে ফাইল ওঠে না। কপিরাইটযুক্ত কনটেন্ট নামানোর দায় নিজের। • ভার্সন ১.১.০</p>
 </div>
 
 <script>
@@ -532,6 +559,7 @@ function finishOk(t){
   t.blobUrl=URL.createObjectURL(blob);
   t.total=blob.size; t.loaded=blob.size;
   saveHistoryEntry(t);
+  todayTotals.bytes+=blob.size; todayTotals.files+=1; saveToday(); renderToday();
   renderBtns(t); updateUI(t); saveBlob(t); pump();
 }
 function finishErr(t,msg,retryable){
@@ -731,6 +759,51 @@ function renderHistory(){
   });
 }
 
+/* ---------------- today's totals (v1.1.0) ---------------- */
+function todayKey(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function loadToday(){
+  try{
+    var t=JSON.parse(localStorage.getItem("gdb_today")||"null");
+    if(t && t.date===todayKey()) return t;
+  }catch(e){}
+  return {date:todayKey(), bytes:0, files:0};
+}
+var todayTotals=loadToday();
+function saveToday(){ try{ localStorage.setItem("gdb_today", JSON.stringify(todayTotals)); }catch(e){} }
+function renderToday(){
+  if(todayTotals.date!==todayKey()){ todayTotals={date:todayKey(), bytes:0, files:0}; saveToday(); }
+  var txt=fmtBytes(todayTotals.bytes)+" • "+bnNum(todayTotals.files)+" ফাইল";
+  var st=$("statToday"); if(st) st.textContent=txt;
+  var tl=$("todayLine"); if(tl) tl.textContent="📊 আজ নামানো: "+txt;
+}
+
+/* ---------------- live speed graph (v1.1.0) ---------------- */
+var speedSamples=[];
+function drawSpeedGraph(){
+  var cv=$("speedGraph"); if(!cv) return;
+  var ctx=cv.getContext("2d");
+  var w=cv.width, h=cv.height;
+  var dark=document.documentElement.getAttribute("data-theme")!=="light";
+  ctx.fillStyle=dark?"#0d1219":"#ffffff";
+  ctx.fillRect(0,0,w,h);
+  if(speedSamples.length<2){
+    ctx.fillStyle=dark?"#6b7f74":"#85958b";
+    ctx.font="14px sans-serif";
+    ctx.fillText("ডাউনলোড চললে এখানে লাইভ গতি গ্রাফ উঠবে", 14, h/2+5);
+    return;
+  }
+  var peak=Math.max.apply(null,speedSamples)||1;
+  ctx.strokeStyle="#2ee6a8"; ctx.lineWidth=2; ctx.beginPath();
+  for(var i=0;i<speedSamples.length;i++){
+    var x=(i/59)*w, y=h-6-(speedSamples[i]/peak)*(h-12);
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  ctx.fillStyle=dark?"#9db0a3":"#5b6d61";
+  ctx.font="12px sans-serif";
+  ctx.fillText("সর্বোচ্চ: "+fmtSpeed(peak), 10, 16);
+}
+
 /* ---------------- input handling ---------------- */
 var urlInput=$("urlInput"), detectRow=$("detectRow"), addErr=$("addErr");
 function showDetect(){
@@ -785,6 +858,105 @@ $("pasteBtn").addEventListener("click", function(){
     });
   } else { urlInput.focus(); }
 });
+/* ---------------- clipboard check (v1.1.0) ---------------- */
+/* Web cannot poll the clipboard silently — this runs once, only when the
+   user taps the button, and only offers the link; it never auto-adds. */
+function extractUrlFromText(txt){
+  if(!txt) return null;
+  var m=txt.match(/https?:\/\/[^\s"'<>]+/i);
+  if(m) return m[0].replace(/[.,;:!?"'’)>\]}]+$/,"");
+  m=txt.match(/magnet:\?[^\s"'<>]+/i);
+  return m? m[0].replace(/[.,;:!?"'’)>\]}]+$/,"") : null;
+}
+$("clipCheckBtn").addEventListener("click", function(){
+  var offer=$("clipOffer");
+  function hideOffer(){ offer.className="err-msg"; offer.innerHTML=""; }
+  if(navigator.clipboard && navigator.clipboard.readText){
+    navigator.clipboard.readText().then(function(txt){
+      var url=extractUrlFromText(txt);
+      if(!url){
+        addErr.textContent="ক্লিপবোর্ডে কোনো ডাউনলোড লিংক পাওয়া যায়নি।"; addErr.className="err-msg show";
+        return;
+      }
+      if(!/^https?:\/\//i.test(url)){
+        addErr.textContent="ক্লিপবোর্ডে Magnet লিংক আছে — ব্রাউজার সংস্করণে Magnet চলে না।"; addErr.className="err-msg show";
+        return;
+      }
+      addErr.className="err-msg"; addErr.textContent="";
+      offer.className="err-msg show"; offer.innerHTML="";
+      var span=document.createElement("span");
+      span.textContent="📋 ক্লিপবোর্ডে লিংক পাওয়া গেছে: "+url+" — যোগ করবেন?";
+      var yes=document.createElement("button");
+      yes.type="button"; yes.className="btn small primary"; yes.textContent="➕ যোগ করুন";
+      yes.addEventListener("click", function(){ hideOffer(); urlInput.value=url; showDetect(); addFromInput(); });
+      var no=document.createElement("button");
+      no.type="button"; no.className="btn small ghostbtn"; no.textContent="বাদ দিন";
+      no.addEventListener("click", hideOffer);
+      offer.appendChild(span); offer.appendChild(yes); offer.appendChild(no);
+    }).catch(function(){
+      addErr.textContent="ক্লিপবোর্ড পড়ার অনুমতি মেলেনি — Ctrl+V চেপে পেস্ট করুন।"; addErr.className="err-msg show"; urlInput.focus();
+    });
+  } else { urlInput.focus(); }
+});
+
+/* ---------------- scheduled downloads (v1.1.0) ---------------- */
+/* In-page timer: works only while this page stays open. */
+function loadSchedules(){
+  try{
+    var s=JSON.parse(localStorage.getItem("gdb_scheduled")||"[]");
+    return Array.isArray(s)? s : [];
+  }catch(e){ return []; }
+}
+var schedules=loadSchedules();
+function saveSchedules(){ try{ localStorage.setItem("gdb_scheduled", JSON.stringify(schedules)); }catch(e){} }
+function renderSchedules(){
+  var list=$("schedList"); if(!list) return;
+  list.innerHTML="";
+  if(!schedules.length){
+    list.innerHTML='<p style="color:var(--faint);font-size:13.5px;margin:8px 0 0">কোনো নির্ধারিত ডাউনলোড নেই।</p>';
+    return;
+  }
+  schedules.forEach(function(entry){
+    var div=document.createElement("div");
+    div.className="sched-item";
+    var d=new Date(entry.runAt);
+    var span=document.createElement("span");
+    span.textContent="⏰ "+d.toLocaleString("bn-BD")+" — "+entry.url;
+    var btn=document.createElement("button");
+    btn.type="button"; btn.className="btn small danger"; btn.textContent="বাতিল";
+    btn.addEventListener("click", function(){
+      schedules=schedules.filter(function(x){return x!==entry;});
+      saveSchedules(); renderSchedules();
+    });
+    div.appendChild(span); div.appendChild(btn);
+    list.appendChild(div);
+  });
+}
+$("schedBtn").addEventListener("click", function(){
+  var lines=urlInput.value.split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean);
+  addErr.className="err-msg"; addErr.textContent="";
+  if(!lines.length){
+    addErr.textContent="আগে উপরে অন্তত একটা লিংক বসান।"; addErr.className="err-msg show"; urlInput.focus(); return;
+  }
+  var when=$("schedTime").value;
+  if(!when){ addErr.textContent="একটি তারিখ ও সময় বেছে নিন।"; addErr.className="err-msg show"; return; }
+  var runAt=new Date(when);
+  if(isNaN(runAt.getTime()) || runAt.getTime()<=Date.now()){
+    addErr.textContent="নির্ধারিত সময়টি ভবিষ্যতের হতে হবে।"; addErr.className="err-msg show"; return;
+  }
+  schedules.push({url:lines[0], runAt:runAt.toISOString()});
+  saveSchedules(); renderSchedules();
+  urlInput.value=""; showDetect();
+});
+setInterval(function(){
+  var now=Date.now(), due=[];
+  schedules.forEach(function(entry){ if(new Date(entry.runAt).getTime()<=now) due.push(entry); });
+  if(!due.length) return;
+  schedules=schedules.filter(function(x){return due.indexOf(x)<0;});
+  saveSchedules(); renderSchedules();
+  due.forEach(function(entry){ createTask(entry.url); });
+  pump(); applyFilter();
+}, 5000);
 document.querySelectorAll("[data-sample]").forEach(function(btn){
   btn.addEventListener("click", function(){
     var u=btn.getAttribute("data-sample");
@@ -821,6 +993,11 @@ setInterval(function(){
     }
   });
   if(changed||true) refreshStats();
+  var tot=0;
+  tasks.forEach(function(t){ if(t.status==="downloading") tot+=t.speed||0; });
+  speedSamples.push(tot);
+  if(speedSamples.length>60) speedSamples.shift();
+  drawSpeedGraph();
 },600);
 
 /* ---------------- theme ---------------- */
@@ -846,6 +1023,17 @@ $("clearHistBtn").addEventListener("click", function(){
   renderHistory();
 });
 renderHistory();
+renderToday();
+renderSchedules();
+drawSpeedGraph();
+(function(){
+  var st=$("schedTime");
+  if(st && !st.value){
+    var d=new Date(Date.now()+3600*1000);
+    var p=function(n){ return String(n).padStart(2,"0"); };
+    st.value=d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes());
+  }
+})();
 
 refreshStats();
 })();
