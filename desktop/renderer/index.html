@@ -34,14 +34,36 @@
     <button id="checkUpdate" class="ghost">🔄 আপডেট চেক</button>
   </section>
   <p class="hint" id="dirHint"></p>
+  <div id="clipBar" class="clip-bar" hidden>
+    <span>📋 ক্লিপবোর্ডে লিংক পাওয়া গেছে: <b id="clipUrl"></b></span>
+    <span class="update-btns">
+      <button id="clipAdd" type="button">➕ যোগ করুন</button>
+      <button id="clipDismiss" type="button" class="ghost small">বাদ দিন</button>
+    </span>
+  </div>
+  <p class="hint"><label><input type="checkbox" id="clipToggle" checked> ক্লিপবোর্ড নজরদারি — কপি করা লিংক পেলে জিজ্ঞেস করবে (নিজে থেকে যোগ করবে না)</label></p>
   <section id="list"></section>
   <p class="empty" id="empty">এখনো কোনো ডাউনলোড নেই — উপরে লিংক বসিয়ে শুরু করুন।</p>
+  <section class="stats-box">
+    <div class="row"><b>📈 লাইভ গতি</b><span id="todayTotals" class="muted">📊 আজ নামানো: —</span></div>
+    <canvas id="speedGraph" width="812" height="90"></canvas>
+    <p class="hint">গ্রাফে শেষ ৬০ সেকেন্ডের মোট ডাউনলোড গতি দেখায়। আজকের হিসাব মাঝরাতে শূন্য হয়ে যায়।</p>
+  </section>
+  <section class="sched-box">
+    <h2>⏰ নির্ধারিত ডাউনলোড</h2>
+    <div class="add-box">
+      <input id="schedTime" type="datetime-local">
+      <button id="scheduleAdd" type="button">⏰ সময়মতো নামান</button>
+    </div>
+    <p class="hint">উপরে লিংক বসিয়ে সময় বেছে “সময়মতো নামান” চাপুন — নির্ধারিত সময়ে অ্যাপ নিজে থেকে ডাউনলোড শুরু করবে। অ্যাপ (ট্রেসহ) খোলা থাকতে হবে।</p>
+    <ul id="schedList"></ul>
+  </section>
   <h2>📜 ইতিহাস</h2>
   <input id="historySearch" type="text" placeholder="ইতিহাসে খুঁজুন… (ফাইলের নাম বা লিংক)" autocomplete="off">
   <ul id="history"></ul>
 </main>
 <footer>
-  <p>নোট: YouTube / Facebook / TikTok ডাউনলোডে <b>yt-dlp</b> ইনস্টল থাকতে হবে (<code>pip install -U yt-dlp</code>)। এনক্রিপ্টেড M3U8 সমর্থিত নয়। কিছু সাইট সরাসরি ডাউনলোড ব্লক করে।</p>
+  <p>নোট: YouTube / Facebook / TikTok ডাউনলোডে <b>yt-dlp</b> ইনস্টল থাকতে হবে (<code>pip install -U yt-dlp</code>)। এনক্রিপ্টেড M3U8 সমর্থিত নয়। কিছু সাইট সরাসরি ডাউনলোড ব্লক করে। • ভার্সন ১.১.০</p>
 </footer>
 <script src="renderer.js"></script>
 </body>

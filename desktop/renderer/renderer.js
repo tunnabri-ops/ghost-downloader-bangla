@@ -107,7 +107,7 @@ function addDownload() {
   const kind = detectKind(url, kindSelect.value);
   const id = 'dl-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
   const filename = guessFilename(url) || (kind === 'm3u8' ? 'video-' + Date.now() + '.ts' : 'download-' + Date.now());
-  const item = { id, url, kind, filename, status: 'downloading', percent: 0, speed: '', eta: 0, received: 0, total: 0 };
+  const item = { id, url, kind, filename, status: 'downloading', percent: 0, speed: '', speedBps: 0, eta: 0, received: 0, total: 0 };
   items.set(id, item);
   if (kind === 'm3u8') window.ghostAPI.downloadM3U8({ id, url, filename });
   else if (kind === 'video') window.ghostAPI.ytDlpDownload({ id, url, format: 'video', filename });
@@ -162,6 +162,7 @@ window.ghostAPI.onProgress((data) => {
   if (!item) return;
   item.percent = data.percent || 0;
   item.speed = data.speed || '';
+  item.speedBps = data.speedBps || 0;
   item.eta = data.eta || 0;
   item.received = data.received || 0;
   item.total = data.total || 0;
@@ -193,6 +194,140 @@ window.ghostAPI.onCancelled((data) => {
   items.delete(data.id);
   render();
 });
+
+// ---------- v1.1.0: clipboard monitor ----------
+// Main process polls the clipboard and sends a found link; the user decides.
+const clipBar = document.getElementById('clipBar');
+const clipUrlEl = document.getElementById('clipUrl');
+const clipToggle = document.getElementById('clipToggle');
+let clipOfferedUrl = '';
+try {
+  const savedClip = localStorage.getItem('ghost-clip-monitor');
+  if (savedClip !== null) clipToggle.checked = savedClip === '1';
+} catch (_) { /* ignore */ }
+window.ghostAPI.setClipboardMonitor(clipToggle.checked);
+clipToggle.addEventListener('change', () => {
+  window.ghostAPI.setClipboardMonitor(clipToggle.checked);
+  try { localStorage.setItem('ghost-clip-monitor', clipToggle.checked ? '1' : '0'); } catch (_) { /* ignore */ }
+});
+window.ghostAPI.onClipboardLink((data) => {
+  if (!data || !data.url) return;
+  clipOfferedUrl = data.url;
+  clipUrlEl.textContent = data.url;
+  clipBar.hidden = false;
+});
+document.getElementById('clipAdd').addEventListener('click', () => {
+  clipBar.hidden = true;
+  if (!clipOfferedUrl) return;
+  urlInput.value = clipOfferedUrl;
+  clipOfferedUrl = '';
+  addDownload();
+});
+document.getElementById('clipDismiss').addEventListener('click', () => {
+  clipBar.hidden = true;
+  clipOfferedUrl = '';
+});
+
+// ---------- v1.1.0: scheduled downloads ----------
+const schedTimeEl = document.getElementById('schedTime');
+const schedListEl = document.getElementById('schedList');
+function fmtSchedTime(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+schedTimeEl.value = fmtSchedTime(new Date(Date.now() + 3600 * 1000));
+function renderSchedules(list) {
+  if (!list.length) {
+    schedListEl.innerHTML = '<li>কোনো নির্ধারিত ডাউনলোড নেই।</li>';
+    return;
+  }
+  schedListEl.innerHTML = '';
+  for (const e of list) {
+    const li = document.createElement('li');
+    const when = new Date(e.runAt).toLocaleString('bn-BD');
+    li.innerHTML = '<span>⏰ ' + escapeHtml(when) + ' — ' + escapeHtml(e.url) + '</span> ';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ghost small';
+    btn.textContent = 'বাতিল';
+    btn.addEventListener('click', () => window.ghostAPI.cancelSchedule(e.id));
+    li.appendChild(btn);
+    schedListEl.appendChild(li);
+  }
+}
+document.getElementById('scheduleAdd').addEventListener('click', () => {
+  const url = urlInput.value.trim();
+  if (!url) { alert('প্রথমে একটি লিংক বসান।'); return; }
+  if (!/^https?:\/\//i.test(url)) { alert('লিংকটি http:// বা https:// দিয়ে শুরু হতে হবে।'); return; }
+  if (!schedTimeEl.value) { alert('একটি তারিখ ও সময় বেছে নিন।'); return; }
+  const runAt = new Date(schedTimeEl.value);
+  if (Number.isNaN(runAt.getTime()) || runAt.getTime() <= Date.now()) {
+    alert('নির্ধারিত সময়টি ভবিষ্যতের হতে হবে।');
+    return;
+  }
+  const kind = detectKind(url, kindSelect.value);
+  const id = 'sched-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+  window.ghostAPI.scheduleDownload({
+    id, url, kind,
+    filename: guessFilename(url) || (kind === 'm3u8' ? 'video-' + Date.now() + '.ts' : 'download-' + Date.now()),
+    runAt: runAt.toISOString()
+  });
+  urlInput.value = '';
+  showNote('⏰ নির্ধারিত হয়েছে: ' + runAt.toLocaleString('bn-BD'));
+});
+window.ghostAPI.getSchedules().then(renderSchedules);
+window.ghostAPI.onScheduleUpdated((list) => renderSchedules(list || []));
+window.ghostAPI.onScheduleDue((entry) => {
+  showNote('⏰ নির্ধারিত ডাউনলোড শুরু হয়েছে: ' + (entry && entry.url ? entry.url : ''));
+});
+
+// ---------- v1.1.0: live speed graph + today's totals ----------
+const speedCanvas = document.getElementById('speedGraph');
+const todayEl = document.getElementById('todayTotals');
+const speedSamples = [];
+function renderTodayTotals(t) {
+  if (!t) return;
+  todayEl.textContent = '📊 আজ নামানো: ' + fmtBytes(t.bytes) + ' • ' + t.files + ' ফাইল';
+}
+function drawSpeedGraph() {
+  const ctx = speedCanvas.getContext('2d');
+  const w = speedCanvas.width;
+  const h = speedCanvas.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, w, h);
+  if (speedSamples.length < 2) {
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '13px system-ui, sans-serif';
+    ctx.fillText('ডাউনলোড চললে এখানে লাইভ গতি গ্রাফ উঠবে', 12, h / 2 + 5);
+    return;
+  }
+  const peak = Math.max.apply(null, speedSamples) || 1;
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < speedSamples.length; i++) {
+    const x = (i / 59) * w;
+    const y = h - 6 - (speedSamples[i] / peak) * (h - 12);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '12px system-ui, sans-serif';
+  ctx.fillText('সর্বোচ্চ: ' + fmtBytes(Math.round(peak)) + '/s', 8, 14);
+}
+setInterval(() => {
+  let total = 0;
+  for (const item of items.values()) {
+    if (item.status === 'downloading') total += item.speedBps || 0;
+  }
+  speedSamples.push(total);
+  if (speedSamples.length > 60) speedSamples.shift();
+  drawSpeedGraph();
+}, 1000);
+window.ghostAPI.getTodayTotals().then(renderTodayTotals);
+window.ghostAPI.onTodayTotals((t) => renderTodayTotals(t));
+drawSpeedGraph();
 
 render();
 renderHistory();

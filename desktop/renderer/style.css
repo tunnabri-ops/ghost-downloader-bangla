@@ -6,7 +6,18 @@ h1 span { color: #38bdf8; }
 .sub { margin: 4px 0 0; color: #94a3b8; }
 main { max-width: 860px; margin: 0 auto; padding: 16px 24px; }
 .add-box { display: flex; gap: 8px; flex-wrap: wrap; }
-input[type="text"] { flex: 1; min-width: 240px; padding: 11px 12px; border-radius: 9px; border: 1px solid #334155; background: #0f172a; color: #fff; font-size: 15px; }
+input[type="datetime-local"] { flex: 1; min-width: 240px; padding: 11px 12px; border-radius: 9px; border: 1px solid #334155; background: #0f172a; color: #fff; font-size: 15px; color-scheme: dark; }
+.stats-box { background: #111c33; border: 1px solid #1e293b; border-radius: 12px; padding: 12px 14px; margin: 16px 0; }
+.stats-box canvas { width: 100%; height: 90px; display: block; border-radius: 8px; margin-top: 8px; }
+.sched-box { background: #111c33; border: 1px solid #1e293b; border-radius: 12px; padding: 12px 14px; margin: 16px 0; }
+.sched-box h2 { margin-top: 0; }
+#schedList { list-style: none; padding: 0; }
+#schedList li { background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 8px 12px; margin: 6px 0; font-size: 14px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+#schedList li span { word-break: break-all; }
+.clip-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: #0c2b1d; border: 1px solid #15803d; color: #bbf7d0; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-size: 14px; }
+.clip-bar[hidden] { display: none; }
+.clip-bar b { word-break: break-all; }
+.clip-bar button { padding: 8px 14px; font-size: 13px; }
 #historySearch { width: 100%; padding: 11px 12px; border-radius: 9px; border: 1px solid #334155; background: #0f172a; color: #fff; font-size: 15px; margin-bottom: 4px; }
 .update-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: #422006; border: 1px solid #b45309; color: #fde68a; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-size: 14px; }
 .update-banner[hidden] { display: none; }
