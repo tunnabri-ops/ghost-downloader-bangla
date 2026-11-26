@@ -14,6 +14,7 @@ from downloader import (
     DailyTotals,
     SpeedSamples,
     extract_download_url,
+    is_video_site_url,
     parse_schedule_time,
     seconds_until_run,
 )
@@ -58,6 +59,24 @@ class TestClipboardUrlDetection(unittest.TestCase):
 
     def test_ftp_is_not_a_download_link(self):
         self.assertIsNone(extract_download_url("ftp://example.com/file.zip"))
+
+
+class TestVideoSiteDetection(unittest.TestCase):
+    def test_real_video_sites_detected(self):
+        self.assertTrue(is_video_site_url("https://www.youtube.com/watch?v=abc"))
+        self.assertTrue(is_video_site_url("https://youtu.be/abc"))
+        self.assertTrue(is_video_site_url("https://www.tiktok.com/@user/video/1"))
+        self.assertTrue(is_video_site_url("https://x.com/user/status/1"))
+        self.assertTrue(is_video_site_url("https://m.facebook.com/watch/?v=1"))
+
+    def test_lookalike_hosts_are_not_video_sites(self):
+        # "x.com" as a substring also lives in firefox.com, box.com,
+        # linux.com — those are plain file hosts, not video pages.
+        self.assertFalse(is_video_site_url("https://www.firefox.com/en-US/download"))
+        self.assertFalse(is_video_site_url("https://www.box.com/shared/file.zip"))
+        self.assertFalse(is_video_site_url("https://www.linux.com/news/article"))
+        self.assertFalse(is_video_site_url("https://fakeyoutube.com/watch?v=1"))
+        self.assertFalse(is_video_site_url("https://example.com/file.zip"))
 
 
 class TestScheduler(unittest.TestCase):

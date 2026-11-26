@@ -1,4 +1,4 @@
-"""Ghost Downloader Bangla v1.1.0 — PySide6 desktop download manager.
+"""Ghost Downloader Bangla v1.1.1 — PySide6 desktop download manager.
 
 Bangla UI: paste a URL, Add, and the download runs in the list with
 progress bar, speed and ETA. Pause / Resume / Cancel per task.
@@ -79,6 +79,10 @@ class SpeedGraph(QWidget):
 class Bridge(QObject):
     """Carries progress callbacks from worker threads to the Qt GUI thread."""
     updated = Signal(object)
+    # ("ok", url) or ("error", message) when a yt-dlp download finishes.
+    # QMessageBox / QLabel calls must happen on the GUI thread, never in
+    # the worker thread that runs yt-dlp.
+    video_done = Signal(object)
 
 
 class MainWindow(QMainWindow):
@@ -89,6 +93,7 @@ class MainWindow(QMainWindow):
         self.tasks = []          # list[Task]
         self.bridge = Bridge()
         self.bridge.updated.connect(self.refresh_row)
+        self.bridge.video_done.connect(self._on_video_done)
         # v1.1.0: today's totals + speed-graph samples.
         self.totals = DailyTotals(TOTALS_FILE)
         self.speed_samples = SpeedSamples(max_len=60)
@@ -233,17 +238,22 @@ class MainWindow(QMainWindow):
             return
         try:
             with open(HISTORY_FILE, encoding="utf-8") as f:
-                for item in json.load(f):
-                    row = self.table.rowCount()
-                    self.table.insertRow(row)
-                    self.table.setItem(row, 0, QTableWidgetItem(item.get("name", "")))
-                    self.table.setItem(row, 1, QTableWidgetItem(format_size(item.get("size"))))
-                    bar = QProgressBar()
-                    bar.setValue(100)
-                    self.table.setCellWidget(row, 2, bar)
-                    self.table.setItem(row, 3, QTableWidgetItem("—"))
-                    self.table.setItem(row, 4, QTableWidgetItem("—"))
-                    self.table.setItem(row, 5, QTableWidgetItem("সম্পন্ন ✓"))
+                data = json.load(f)
+            if not isinstance(data, list):
+                return  # corrupt file (not a list): show no history, don't crash
+            for item in data:
+                if not isinstance(item, dict):
+                    continue  # skip a corrupt entry, keep the rest
+                row = self.table.rowCount()
+                self.table.insertRow(row)
+                self.table.setItem(row, 0, QTableWidgetItem(item.get("name", "")))
+                self.table.setItem(row, 1, QTableWidgetItem(format_size(item.get("size"))))
+                bar = QProgressBar()
+                bar.setValue(100)
+                self.table.setCellWidget(row, 2, bar)
+                self.table.setItem(row, 3, QTableWidgetItem("—"))
+                self.table.setItem(row, 4, QTableWidgetItem("—"))
+                self.table.setItem(row, 5, QTableWidgetItem("সম্পন্ন ✓"))
         except (OSError, ValueError, KeyError):
             pass
 
@@ -253,6 +263,8 @@ class MainWindow(QMainWindow):
             try:
                 with open(HISTORY_FILE, encoding="utf-8") as f:
                     history = json.load(f)
+                if not isinstance(history, list):
+                    history = []  # corrupt file: start fresh, don't crash
             except (OSError, ValueError):
                 history = []
         history.append({
@@ -317,15 +329,22 @@ class MainWindow(QMainWindow):
         def run():
             try:
                 download_with_yt_dlp(url, DOWNLOAD_DIR, quality=quality)
-                self.bridge.updated.emit(None)  # refresh status label
-                QMessageBox.information(self, "সম্পন্ন", "ভিডিও ডাউনলোড সম্পন্ন হয়েছে।")
+                self.bridge.video_done.emit(("ok", url))
             except DownloadError as exc:
-                QMessageBox.warning(self, "ডাউনলোড ব্যর্থ", str(exc))
+                self.bridge.video_done.emit(("error", str(exc)))
             finally:
                 self._ytdlp_active = False
-                self.status_label.setText("তৈরি")
 
         threading.Thread(target=run, daemon=True).start()
+
+    def _on_video_done(self, result):
+        """Runs on the GUI thread: show the yt-dlp result dialog."""
+        kind, payload = result
+        self.status_label.setText("তৈরি")
+        if kind == "ok":
+            QMessageBox.information(self, "সম্পন্ন", "ভিডিও ডাউনলোড সম্পন্ন হয়েছে।")
+        else:
+            QMessageBox.warning(self, "ডাউনলোড ব্যর্থ", payload)
 
     # -- table ----------------------------------------------------------------
     def add_row(self, task):

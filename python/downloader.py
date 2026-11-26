@@ -20,7 +20,7 @@ import subprocess
 import threading
 import time
 from datetime import date, datetime
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import requests
 
@@ -415,7 +415,11 @@ class Task:
             # Count already-downloaded segments by size marker file.
             marker = self.dest + ".segments"
             if os.path.exists(marker):
-                existing = int(open(marker, encoding="utf-8").read().strip() or 0)
+                try:
+                    existing = int(open(marker, encoding="utf-8").read().strip() or 0)
+                except (OSError, ValueError):
+                    existing = 0  # junk marker: restart from the first segment
+                existing = max(0, min(existing, len(segments)))
         self.downloaded = existing
         mode = "ab" if existing else "wb"
         with open(self.dest, mode) as out:
@@ -443,10 +447,18 @@ def is_m3u8_url(url):
 
 
 def is_video_site_url(url):
-    """True when the URL is probably a video page (YouTube etc.) — needs yt-dlp."""
-    host = url.lower()
+    """True when the URL is probably a video page (YouTube etc.) — needs yt-dlp.
+
+    Matches on the real hostname, not a substring: "x.com" as a substring
+    also appears in firefox.com, box.com and linux.com, which are ordinary
+    file hosts and must download directly, not through yt-dlp.
+    """
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except ValueError:
+        return False
     return any(
-        d in host
+        host == d or host.endswith("." + d)
         for d in (
             "youtube.com", "youtu.be", "facebook.com", "fb.watch",
             "tiktok.com", "instagram.com", "twitter.com", "x.com",
