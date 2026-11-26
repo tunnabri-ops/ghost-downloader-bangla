@@ -6,7 +6,7 @@
 
 **A Bangla-first download manager for everyone — web, Python desktop, and Electron desktop in one project.**
 
-**Current version: v1.1.0** — see [What's new in v1.1.0](#-whats-new-in-v110) below.
+**Current version: v1.1.1** — see [What's new in v1.1.1](#-whats-new-in-v111) below.
 
 **One app that downloads anything — with a Bangla-first interface and three ways to run it.**
 
@@ -18,9 +18,9 @@
 - **Pause / Resume** (continues from where it stopped, when the server supports Range)
 - **Download queue** — many downloads at once, with filters
 - **M3U8 playlists** — downloads every segment and joins them into one `.ts` file
-- **YouTube / Facebook / TikTok** — via yt-dlp (when installed), plus an in-page player
+- **YouTube / Facebook / TikTok** — via yt-dlp (when installed); the web version also embeds a YouTube player so you can watch while you decide
 - **Multi-connection chunked downloads** (Python + desktop) for faster speeds
-- **M3U8 quality picker** — choose 1080p / 720p / 480p instead of always taking the best stream
+- **M3U8 quality picker** — choose Best / 720p / 480p instead of always taking the best stream (web version)
 - **Download history** (web + desktop) — finished downloads are saved; re-download any of them in one click, search your history on desktop
 - **Auto-retry** — a network failure retries by itself up to 3 times
 - **Speed limit** — cap downloads at 1 MB/s or 5 MB/s (web)
@@ -35,6 +35,13 @@
 - **📋 Clipboard monitor** — a copied download link is detected and offered ("link found — add?"), never added silently. Electron and Python watch the clipboard while the app runs; the web version checks once when you tap the button (browsers don't allow silent clipboard reads).
 - **⏰ Scheduled download** — pick a date and time and the download starts automatically then. Electron and Python keep the schedule saved and check every 15 seconds; the web version uses an in-page timer, so it only works while the page stays open.
 - **📈 Speed graph + today's totals** — a live graph of the last 60 seconds of download speed, and a "downloaded today" total (bytes + file count) that resets at midnight. Saved in localStorage on web, in a small JSON file on desktop/Python.
+
+## 🆕 What's new in v1.1.1
+
+- **🔧 Video-site detection fixed** — lookalike domains (e.g. `fakeyoutube.com`, `firefox.com`) are no longer mistaken for video sites and sent to yt-dlp; detection now matches the real hostname.
+- **🔧 Clipboard monitor** — no longer offers magnet links it can never download; only real download links are offered.
+- **🔧 Stability fixes** — yt-dlp completion no longer touches the UI from a background thread (Python desktop); a corrupt download-history or M3U8 resume file no longer crashes the app — it just starts fresh; cancelling a queued M3U8 download now refreshes its buttons correctly.
+- **📦 Smaller installer** — the test file is no longer shipped inside the Windows exe.
 
 ## 🚀 Three versions
 
