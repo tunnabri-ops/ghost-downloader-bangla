@@ -404,8 +404,9 @@ ipcMain.handle('get-downloads-dir', () => DOWNLOADS_DIR);
 
 // ---------- v1.1.0: clipboard monitor ----------
 // Polls the system clipboard every 2s while the app runs. When a fresh
-// http(s)/magnet link appears, the renderer is asked to offer it — the
-// link is never added automatically, and each URL is offered only once.
+// http(s) link appears, the renderer is asked to offer it — the link is
+// never added automatically, and each URL is offered only once.
+// (Magnet links are not offered: this app cannot download them.)
 let clipMonitorEnabled = true;
 let lastClipText = '';
 const clipOffered = new Set();
@@ -417,6 +418,9 @@ function checkClipboard() {
   lastClipText = text;
   const url = extractDownloadUrl(text);
   if (!url || clipOffered.has(url)) return;
+  // Only offer http(s) links: this app cannot download magnets, and
+  // offering one would just end in an error alert in the renderer.
+  if (!/^https?:\/\//i.test(url)) return;
   clipOffered.add(url);
   send('clipboard-link-found', { url });
 }

@@ -118,4 +118,25 @@ check('samples: keeps order', () => {
   assert.deepStrictEqual(s.values(), [10, 20]);
 });
 
+// --- video-site detection: hostname match, not substring ---
+// detectKind lives in renderer/renderer.js (DOM file); extract the real
+// function source and run it here — it only uses `new URL`, so plain
+// Node can execute it.
+const rendererSrc = fs.readFileSync(path.join(__dirname, 'renderer', 'renderer.js'), 'utf8');
+const detectKindSrc = rendererSrc.match(/function detectKind\(url, chosen\) \{[\s\S]*?\n\}/);
+if (!detectKindSrc) throw new Error('detectKind not found in renderer.js');
+const detectKind = new Function(detectKindSrc[0] + '; return detectKind;')();
+check('detectKind: real youtube goes to yt-dlp', () => {
+  assert.strictEqual(detectKind('https://www.youtube.com/watch?v=abc123', 'auto'), 'video');
+  assert.strictEqual(detectKind('https://youtu.be/abc123', 'auto'), 'video');
+});
+check('detectKind: lookalike hosts stay direct', () => {
+  assert.strictEqual(detectKind('https://fakeyoutube.com/watch?v=1', 'auto'), 'direct');
+  assert.strictEqual(detectKind('https://myfacebook.com/page', 'auto'), 'direct');
+  assert.strictEqual(detectKind('https://example.com/file.zip', 'auto'), 'direct');
+});
+check('detectKind: m3u8 still detected', () => {
+  assert.strictEqual(detectKind('https://example.com/stream.m3u8', 'auto'), 'm3u8');
+});
+
 console.log(passed + ' checks passed' + (process.exitCode ? ' (with failures)' : ''));
