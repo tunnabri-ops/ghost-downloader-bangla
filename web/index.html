@@ -279,7 +279,7 @@
     </section>
   </div>
 
-  <p class="foot">ডাউনলোড হয় আপনার নিজের ব্রাউজার থেকেই — কোনো সার্ভারে ফাইল ওঠে না। কপিরাইটযুক্ত কনটেন্ট নামানোর দায় নিজের। • ভার্সন ১.১.০</p>
+  <p class="foot">ডাউনলোড হয় আপনার নিজের ব্রাউজার থেকেই — কোনো সার্ভারে ফাইল ওঠে না। কপিরাইটযুক্ত কনটেন্ট নামানোর দায় নিজের। • ভার্সন ১.১.১</p>
 </div>
 
 <script>
@@ -539,7 +539,7 @@ function cancelTask(t){
   t.pauseReq=false;
   if(t.controller) t.controller.abort();
   t.status="cancelled"; t.chunks=[]; t.loaded=0; t.segIndex=0;
-  if(t.kind!=="m3u8"){ renderBtns(t); updateUI(t); }
+  renderBtns(t); updateUI(t);
   pump();
 }
 function retryTask(t){
@@ -980,19 +980,18 @@ $("clearDoneBtn").addEventListener("click", function(){
 
 /* live ticker: speed decay + stats */
 setInterval(function(){
-  var changed=false;
+  var now=Date.now();
   tasks.forEach(function(t){
     if(t.status==="downloading"){
-      var now=Date.now();
       while(t.samples.length>1 && now-t.samples[0].t>4000) t.samples.shift();
       if(t.samples.length>1){
         var f=t.samples[0], dt=(now-f.t)/1000;
         t.speed = dt>0.3 ? Math.max(0,(t.loaded-f.b)/dt) : t.speed;
       } else if(now-(t.samples.length?t.samples[0].t:0)>4500){ t.speed=0; }
-      updateUI(t); changed=true;
+      updateUI(t);
     }
   });
-  if(changed||true) refreshStats();
+  refreshStats();
   var tot=0;
   tasks.forEach(function(t){ if(t.status==="downloading") tot+=t.speed||0; });
   speedSamples.push(tot);
