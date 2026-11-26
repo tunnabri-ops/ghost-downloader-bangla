@@ -53,7 +53,12 @@ function fmtEta(sec) {
 function detectKind(url, chosen) {
   if (chosen !== 'auto') return chosen;
   if (url.includes('.m3u8')) return 'm3u8';
-  if (/(youtube\.com|youtu\.be|facebook\.com|tiktok\.com|instagram\.com)/i.test(url)) return 'video';
+  // Match on the real hostname, not a substring: "fakeyoutube.com" and
+  // "myfacebook.com" are not YouTube/Facebook and must not go to yt-dlp.
+  let host = '';
+  try { host = new URL(url).hostname.toLowerCase(); } catch (_) { host = ''; }
+  const videoHosts = ['youtube.com', 'youtu.be', 'facebook.com', 'tiktok.com', 'instagram.com'];
+  if (videoHosts.some((d) => host === d || host.endsWith('.' + d))) return 'video';
   return 'direct';
 }
 
